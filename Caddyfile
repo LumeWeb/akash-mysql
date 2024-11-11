@@ -1,0 +1,29 @@
+{
+    # Global Caddy configuration
+    admin off
+    
+    # Logging
+    log {
+        level INFO
+        output file /var/log/caddy/access.log
+    }
+}
+
+# Metrics exporter with authentication and SSL
+:8080 {
+    # Basic authentication for metrics
+    basicauth /* {
+        {$METRICS_USERNAME} {$METRICS_PASSWORD}
+    }
+
+    # Proxy to metrics exporter
+    reverse_proxy localhost:9104 {
+        transport http {
+            tls_insecure_skip_verify
+        }
+    }
+
+    tls {
+        challenge http
+    }
+}
