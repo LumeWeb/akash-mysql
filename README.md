@@ -2,104 +2,41 @@
 
 A production-ready MySQL solution optimized for Akash Network deployments, supporting both standalone and high-availability cluster modes.
 
-> Note: The `archive` directory contains unused code reserved for future use.
-
 ## Features
 
-- Optimized for Akash deployments
 - Automatic master/slave failover in cluster mode
-- Dynamic configuration optimization
-- Resource-aware scaling
-- Prometheus metrics export
+- Dynamic configuration optimization based on available resources
+- Automated encrypted backups to S3
+- GTID-based replication
+- Comprehensive health monitoring
 - Zero-config standalone mode
-- Automatic backup management
-- SSL/TLS support
-
-## Deployment Modes
-
-### Standalone Mode
-
-Perfect for single-node deployments where high availability isn't required:
-
-```sdl
-services:
-  mysql:
-    image: ghcr.io/lumeweb/akash-mysql:latest
-    env:
-      - MYSQL_ROOT_PASSWORD=mypassword
-    expose:
-      - port: 3306
-        as: 3306
-        to:
-          - global: true
-```
-
-### Cluster Mode
-
-For high-availability deployments with automatic failover:
-
-```sdl
-services:
-  etcd:
-    image: bitnami/etcd:latest
-    env:
-      - ALLOW_NONE_AUTHENTICATION=yes
-    expose:
-      - port: 2379
-        to:
-          - service: mysql
-
-  mysql-master:
-    image: ghcr.io/lumeweb/akash-mysql:latest
-    env:
-      - CLUSTER_MODE=true
-      - ETCD_HOST=etcd
-      - ETCD_PORT=2379
-      - MYSQL_ROOT_PASSWORD=mypassword
-    expose:
-      - port: 3306
-        as: 3306
-        to:
-          - global: true
-
-  mysql-slave:
-    image: ghcr.io/lumeweb/akash-mysql:latest
-    count: 2
-    env:
-      - CLUSTER_MODE=true
-      - ETCD_HOST=etcd
-      - ETCD_PORT=2379
-      - MYSQL_ROOT_PASSWORD=mypassword
-    expose:
-      - port: 3306
-        to:
-          - global: true
-```
 
 ## Environment Variables
 
 ### Required
 - `MYSQL_ROOT_PASSWORD`: Root password for MySQL
+- `MYSQL_REPL_USERNAME`: Replication user (required for cluster mode)
+- `MYSQL_REPL_PASSWORD`: Replication password (required for cluster mode)
 
-### Optional
+### S3 Backup Configuration (Required for backups)
+- `S3_ACCESS_KEY`: S3 access key
+- `S3_SECRET_KEY`: S3 secret key
+- `S3_ENDPOINT`: S3 endpoint URL
+- `S3_BUCKET`: S3 bucket name
+- `S3_PATH`: Path within bucket for backups
+- `S3_SSL`: Enable SSL for S3 (true/false)
+
+### Backup Configuration
+- `BACKUP_CONFIG_DIR`: Backup configuration directory (default: /etc/mysql/backup)
+- `BACKUP_RETENTION_DAYS`: Number of days to retain backups
+- `BACKUP_FULL_INTERVAL`: Interval between full backups in seconds
+- `BACKUP_INCR_INTERVAL`: Interval between incremental backups in seconds
+
+### Cluster Configuration
 - `CLUSTER_MODE`: Enable cluster mode (default: false)
-- `PORT`: MySQL port (default: 3306)
-- `ETCD_HOST`: etcd host (required for cluster mode)
-- `ETCD_PORT`: etcd port (required for cluster mode)
-- `ETCD_USERNAME`: etcd authentication username
-- `ETCD_PASSWORD`: etcd authentication password
-- `METRICS_PORT`: Prometheus metrics port (default: 8080)
-- `METRICS_USERNAME`: Metrics authentication username
-- `METRICS_PASSWORD`: Metrics authentication password
-- `MYSQL_REPL_USER`: Replication user (default: repl)
-- `MYSQL_REPL_PASSWORD`: Replication password
-- `BACKUP_ENABLED`: Enable automated backups (default: false)
-- `BACKUP_SCHEDULE`: Backup schedule in cron format
-- `SSL_ENABLED`: Enable SSL/TLS (default: false)
-
-## etcd Protocol Schema
-
-The cluster uses etcd for coordination with the following key structure:
+- `ETCDCTL_ENDPOINTS`: etcd endpoints (required for cluster mode)
+- `ETC_USERNAME`: etcd authentication username (optional)
+- `ETC_PASSWORD`: etcd authentication password (optional)
 
 ## etcd Schema
 
@@ -107,63 +44,55 @@ The cluster uses etcd for coordination with the following structure:
 
 ### Base Paths
 ```
-/mysql/                              # Base path for all MySQL cluster data
-    /nodes/                          # Node status and metadata
-    /topology/                       # Cluster topology information
+/mysql/                           # Base path for all MySQL cluster data
+    /nodes/                       # Node status and metadata
+    /topology/                    # Cluster topology information
 ```
 
 ### Node Status
 ```
-/mysql/nodes/<node_id>              # Node status and metadata
+/mysql/nodes/<node_id>           # Node status and metadata
 {
-    "status": "online|failed|initializing",
+    "status": "online|offline",
     "role": "master|slave",
     "host": "hostname",
     "port": "port",
     "last_seen": "timestamp",
-    "gtid_position": "current_gtid"
+    "gtid_position": "current_gtid",
+    "health": {
+        "status": "string",
+        "connections": number,
+        "uptime": number
+    }
 }
 ```
 
 ### Topology Management
 ```
-/mysql/topology/
-    /master                          # Current master reference
-        -> "<node_id>"              # Points to current master node
-    /slaves/                         # Slave topology tracking
-        /<node_id>                  # Each slave's replication status
-            -> {
-                "master_node_id": "<master_node_id>",
-                "replication_lag": "seconds"
-            }
+/mysql/topology/master           # Current master reference
 ```
 
 ### Lease Management
-- Each node maintains a 10-second TTL lease
+- Each node maintains a lease with TTL
 - Health updates occur every 5 seconds
-- Node status is automatically marked offline when lease expires
+- Node status automatically marked offline when lease expires
 
-## Monitoring
+## Backup System
 
-### Prometheus Metrics
-Available on port 8080 with basic auth:
+- Encrypted backups using AES256
+- Full and incremental backup support
+- Automatic backup verification
+- Streaming backup support via port 4444
+- S3-compatible storage support
 
-```bash
-curl -u $METRICS_USERNAME:$METRICS_PASSWORD http://host:8080/metrics
-```
+## Health Monitoring
 
-Metrics include:
-- MySQL server status
-- Replication lag
-- Connection pool stats
-- Query performance
-- Resource usage
-- Backup status
-
-### Health Monitoring
-- Continuous health checks
+- Continuous health checks including:
+  - Process status
+  - MySQL connectivity
+  - Read/Write capability
+  - Replication status
 - Automatic failover on master failure
-- Resource utilization tracking
 - Error condition monitoring
 
 ## Configuration
@@ -172,17 +101,10 @@ The system automatically optimizes for:
 - Available memory
 - CPU cores
 - Container limits
-- Network conditions
-- Workload patterns
-
-## Support
-
-- Issues: [GitHub Issues](https://github.com/lumeweb/akash-mysql/issues)
+- Kubernetes environment detection
+- InnoDB settings
+- Performance schema (when >8GB RAM available)
 
 ## License
 
 MIT License - see LICENSE file for details
-
-## Authors
-
-Hammer Technologies LLC
