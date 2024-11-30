@@ -17,16 +17,23 @@ USER root
 
 # Install dependencies and set up directories in a single layer
 RUN percona-release enable pxb-80 && \
-    yum install -y --setopt=tsflags=nodocs percona-xtrabackup-80 lz4 zstd jq nc gettext && \
+    yum install -y --setopt=tsflags=nodocs \
+    percona-xtrabackup-80 lz4 zstd jq nc gettext openssl cronie && \
+    mkdir -p /var/lib/mysql-backup && \
+    chown mysql:mysql /var/lib/mysql-backup && \
+    chmod 750 /var/lib/mysql-backup && \
     yum clean all && \
     rm -rf /var/cache/yum && \
     mkdir -p /var/log/{mysql,mysql-manager} /etc/mysql /var/run/mysqld /etc/mysql/conf.d && \
+    mkdir -p /etc/cron.d && \
     rm -f /docker-entrypoint.sh
 
 # Copy files
 COPY --chown=mysql:mysql entrypoint.sh /entrypoint.sh
 COPY --chown=mysql:mysql paths.sh /paths.sh
 COPY --chown=mysql:mysql lib/ /usr/local/lib/
+COPY --chown=mysql:mysql bin/mysql-backup-* /usr/local/bin/
+RUN chmod 755 /usr/local/bin/mysql-backup-*
 COPY --from=metrics-exporter /usr/bin/metrics-exporter /usr/bin/akash-metrics-exporter
 COPY --from=etcd /opt/bitnami/etcd/bin/etcdctl /usr/bin/etcdctl
 COPY ./docker-entrypoint-initdb.d /docker-entrypoint-initdb.d

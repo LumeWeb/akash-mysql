@@ -149,10 +149,23 @@ start_mysql() {
     mkdir -p /var/lib/mysql
     chown -R mysql:mysql  "$DATA_DIR"
     
-    # Initialize MySQL if needed
-    if ! init_mysql; then
-        log_error "MySQL initialization failed"
-        return 1
+    # Check for forced master recovery
+    FORCE_MASTER_RECOVERY=${FORCE_MASTER_RECOVERY:-0}
+    
+    # Check if recovery is needed
+    if detect_recovery_needed; then
+        log_warn "Recovery needed - initiating recovery workflow"
+        if ! perform_recovery "$FORCE_MASTER_RECOVERY"; then
+            log_error "Recovery failed"
+            return 1
+        fi
+        log_info "Recovery completed successfully"
+    else
+        # Normal initialization
+        if ! init_mysql; then
+            log_error "MySQL initialization failed"
+            return 1
+        fi
     fi
         
     # Skip permissions as we're already running as mysql user
@@ -225,6 +238,12 @@ start_mysql() {
     fi
 
     # Root password is now set during initialization
+
+    # Initialize backup environment
+    if ! init_backup_env; then
+        log_error "Failed to initialize backup environment"
+        return 1
+    fi
 
     # Process initialization files after MySQL is running
     if [ -d "/docker-entrypoint-initdb.d" ]; then

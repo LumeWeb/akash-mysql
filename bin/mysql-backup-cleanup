@@ -1,0 +1,19 @@
+#!/bin/bash
+set -e
+
+source "${LIB_PATH}/mysql-backup.sh"
+source "${LIB_PATH}/core/logging.sh"
+
+# Load configuration
+if [ -f "${BACKUP_CONFIG_DIR}/backup.conf" ]; then
+    source "${BACKUP_CONFIG_DIR}/backup.conf"
+fi
+
+# Execute backup cleanup
+if cleanup_old_backups; then
+    log_info "Backup cleanup completed successfully"
+    exit 0
+else
+    log_error "Backup cleanup failed"
+    exit 1
+fi

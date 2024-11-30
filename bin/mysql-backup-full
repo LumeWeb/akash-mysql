@@ -1,0 +1,21 @@
+#!/bin/bash
+set -e
+
+source "${LIB_PATH}/mysql-backup.sh"
+source "${LIB_PATH}/core/logging.sh"
+
+# Load configuration
+if [ -f "${BACKUP_CONFIG_DIR}/backup.conf" ]; then
+    source "${BACKUP_CONFIG_DIR}/backup.conf"
+fi
+
+# Execute full backup
+if create_full_backup; then
+    update_local_backup_status "success" "full"
+    log_info "Full backup completed successfully"
+    exit 0
+else
+    update_local_backup_status "failed" "full"
+    log_error "Full backup failed"
+    exit 1
+fi

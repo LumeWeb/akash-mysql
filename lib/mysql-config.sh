@@ -365,7 +365,24 @@ EOF
     esac
 
     chmod 644 "${CONFIG_DIR}"/*.cnf
+
+    # Configure backup streaming
+    configure_backup_streaming
     return 0
+}
+
+# Configure backup streaming settings
+configure_backup_streaming() {
+    # Always bind to localhost only
+    BACKUP_STREAM_PORT=4444  # Fixed port, no need for dynamic
+    BACKUP_STREAM_BIND="127.0.0.1"  # Always localhost
+    
+    # Save configuration
+    cat > "$CONFIG_DIR/backup-stream.conf" << EOF
+backup_stream_port=4444
+backup_stream_bind=127.0.0.1
+EOF
+    chmod 600 "$CONFIG_DIR/backup-stream.conf"
 }
 # Function to verify and initialize GTID configuration
 verify_gtid_configuration() {

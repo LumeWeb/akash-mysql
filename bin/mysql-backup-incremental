@@ -1,0 +1,21 @@
+#!/bin/bash
+set -e
+
+source "${LIB_PATH}/mysql-backup.sh"
+source "${LIB_PATH}/core/logging.sh"
+
+# Load configuration
+if [ -f "${BACKUP_CONFIG_DIR}/backup.conf" ]; then
+    source "${BACKUP_CONFIG_DIR}/backup.conf"
+fi
+
+# Execute incremental backup
+if create_incremental_backup; then
+    update_local_backup_status "success" "incremental"
+    log_info "Incremental backup completed successfully"
+    exit 0
+else
+    update_local_backup_status "failed" "incremental"
+    log_error "Incremental backup failed"
+    exit 1
+fi

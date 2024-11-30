@@ -5,6 +5,7 @@ shopt -s nullglob
 source ./paths.sh
 source "${LIB_PATH}/core/logging.sh"
 source "${LIB_PATH}/core/constants.sh"
+source "${LIB_PATH}/core/cron.sh"
 
 # If we're running as root, set up permissions and re-execute as mysql
 if [ "$(id -u)" = "0" ]; then
@@ -51,8 +52,27 @@ EOF
     exit 1
 fi
 
+# Start required services
+start_services() {
+    # Start crond if it exists
+    if command -v crond >/dev/null 2>&1; then
+        start_cron
+    fi
+}
+
+# Stop services before exit
+stop_services() {
+    stop_cron
+}
+
 # Main entrypoint logic
 main() {
+    # Start required services
+    start_services
+    
+    # Set up cleanup trap
+    trap stop_services EXIT
+    
     # Environment setup
     declare -gx HOST
     declare -gx PORT

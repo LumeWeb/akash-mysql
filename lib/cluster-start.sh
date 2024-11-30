@@ -8,6 +8,7 @@ source "${LIB_PATH}/mysql-common.sh"
 source "${LIB_PATH}/mysql-startup.sh"
 source "${LIB_PATH}/mysql-config.sh"
 source "${LIB_PATH}/mysql-role.sh"
+source "${LIB_PATH}/mysql-recovery.sh"
 
 # Source cleanup functions
 source "${LIB_PATH}/cleanup-functions.sh"

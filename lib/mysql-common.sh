@@ -12,6 +12,50 @@ declare -g MYSQL_PID=""
 declare -g LEASE_KEEPALIVE_PID=""
 declare -g HEALTH_UPDATE_PID=""
 
+# Protected paths that should never be deleted
+declare -g PROTECTED_PATHS=(
+    "backup-keys"
+    "mysql-files"
+)
+
+# Safely clear directory contents while preserving protected paths
+safe_clear_directory() {
+    local dir="$1"
+    
+    if [ ! -d "$dir" ]; then
+        log_error "Cannot clear non-existent directory: $dir"
+        return 1
+    fi
+
+    log_info "Safely clearing directory: $dir"
+    log_info "Protected paths: ${PROTECTED_PATHS[*]}"
+    
+    for f in "$dir"/*; do
+        # Skip if file doesn't exist (empty directory)
+        [ ! -e "$f" ] && continue
+        
+        local basename
+        basename=$(basename "$f")
+        
+        # Check if path is protected
+        local is_protected=0
+        for protected in "${PROTECTED_PATHS[@]}"; do
+            if [ "$basename" = "$protected" ]; then
+                log_info "Preserving protected path: $basename"
+                is_protected=1
+                break
+            fi
+        done
+        
+        if [ $is_protected -eq 0 ]; then
+            log_info "Removing: $basename"
+            rm -rf "$f"
+        fi
+    done
+    
+    return 0
+}
+
 # Handle Docker secrets and environment variables
 file_env() {
     local var="$1"

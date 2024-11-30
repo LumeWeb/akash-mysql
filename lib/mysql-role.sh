@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source "${LIB_PATH}/core/cron.sh"
+
 # Track current role and state
 declare -g CURRENT_ROLE=""
 declare -g ROLE_STATE_FILE="/var/lib/mysql/last_role"
@@ -27,6 +29,17 @@ save_role_state() {
 handle_promotion_to_master() {
     log_info "Handling promotion to source (primary) role"
 
+    # Stop any existing backup services first
+    if ! stop_cron; then
+        log_error "Failed to stop existing cron jobs"
+        return 1
+    fi
+    
+    if ! stop_streaming_backup_server; then
+        log_error "Failed to stop existing backup server"
+        return 1
+    fi
+
     # Stop replication and reset configuration
     mysql_retry_auth root "${MYSQL_ROOT_PASSWORD}" -e "
         STOP REPLICA;
@@ -42,6 +55,17 @@ handle_promotion_to_master() {
     # Start GTID monitoring
     monitor_gtid
 
+    # Start backup services for master
+    if ! setup_backup_cron; then
+        log_error "Failed to setup backup cron jobs"
+        return 1
+    fi
+    
+    if ! start_streaming_backup_server; then
+        log_error "Failed to start backup streaming server"
+        return 1
+    fi
+
     # Update our status in etcd
     update_node_status "$NODE_ID" "online" "master"
 }
@@ -49,6 +73,18 @@ handle_promotion_to_master() {
 # Switch node to replica (slave) role
 handle_demotion_to_slave() {
     log_info "Handling demotion to replica role"
+    
+    # Stop backup services first before any role change
+    if ! stop_cron; then
+        log_error "Failed to stop cron jobs"
+        return 1
+    fi
+    
+    if ! stop_streaming_backup_server; then
+        log_error "Failed to stop backup streaming server"
+        return 1
+    fi
+
     local max_attempts=10
     local attempt=1
     local wait_time=5
@@ -73,6 +109,17 @@ handle_demotion_to_slave() {
             fi
 
             REPLICATION_CONFIGURED=0
+            
+            # Stop backup services when becoming slave
+            if ! stop_cron; then
+                log_error "Failed to stop cron jobs"
+                return 1
+            fi
+            if ! stop_streaming_backup_server; then
+                log_error "Failed to stop backup streaming server"
+                return 1
+            fi
+            
             update_node_status "$NODE_ID" "online" "slave"
             return 0
         fi
@@ -179,7 +226,29 @@ monitor_gtid() {
 
     (
         while true; do
-            gtid_position=$(get_gtid_position)
+            # Use flock to prevent concurrent GTID updates
+            (
+                flock -n 200 || { 
+                    log_warn "Another GTID monitor is running"
+                    return 1
+                }
+                
+                # Retry GTID position check a few times before giving up
+                local gtid_attempts=3
+                while [ $gtid_attempts -gt 0 ]; do
+                    if gtid_position=$(get_gtid_position); then
+                        break
+                    fi
+                    log_warn "Failed to get GTID position, retrying..."
+                    sleep 2
+                    gtid_attempts=$((gtid_attempts - 1))
+                done
+
+                if [ $gtid_attempts -eq 0 ]; then
+                    log_error "Failed to get GTID position after multiple attempts"
+                    sleep 5
+                    return 1
+                fi
             if [ -n "$gtid_position" ] && [ "$gtid_position" != "$LAST_KNOWN_GTID" ]; then
                 LAST_KNOWN_GTID="$gtid_position"
                 log_info "GTID position updated: $gtid_position"
