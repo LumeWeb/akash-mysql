@@ -80,6 +80,7 @@ init_mysql() {
                   --socket=/var/run/mysqld/mysqld.sock \
                   --pid-file=/var/run/mysqld/mysqld.pid \
                   --log-error=/var/log/mysql/init-error.log \
+                  --port="${MYSQL_PORT}" \
                   --user=mysql &
             TEMP_MYSQL_PID=$!
             
