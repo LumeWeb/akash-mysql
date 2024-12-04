@@ -95,6 +95,7 @@ main() {
     HOST=${AKASH_INGRESS_HOST:-localhost}
     MYSQL_PORT=${MYSQL_PORT:-3306}
     export MYSQL_PORT
+    log_info "Configured MySQL port: ${MYSQL_PORT}"
     
     # Use Akash environment variables directly and export
     NODE_ID=$(echo "${AKASH_INGRESS_HOST}:${AKASH_EXTERNAL_PORT_3306}" | sha256sum | cut -c1-8)
