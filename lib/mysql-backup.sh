@@ -10,6 +10,12 @@ source "${LIB_PATH}/mysql-common.sh"
 
 # Initialize backup environment and validate all required settings
 init_backup_env() {
+    # Check if backups are enabled
+    if [ "${BACKUP_ENABLED}" != "true" ]; then
+        log_info "Backups are disabled via BACKUP_ENABLED environment variable"
+        return 0
+    fi
+
     # Validate required S3 variables
     for var in "${REQUIRED_S3_VARS[@]}"; do
         if [ -z "${!var}" ]; then

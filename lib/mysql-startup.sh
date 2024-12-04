@@ -310,9 +310,13 @@ start_mysql() {
     fi
 
     # Initialize backup environment after all initialization
-    if ! init_backup_env; then
-        log_error "Failed to initialize backup environment"
-        return 1
+    if [ "${BACKUP_ENABLED}" = "true" ]; then
+        if ! init_backup_env; then
+            log_error "Failed to initialize backup environment"
+            return 1
+        fi
+    else
+        log_info "Skipping backup initialization - backups disabled"
     fi
 
     return 0

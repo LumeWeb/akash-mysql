@@ -26,14 +26,18 @@ fi
 log_info "MySQL is running in standalone mode"
 log_info "Port: ${PORT}"
 
-# Initialize backup system explicitly for standalone mode
-if ! init_backup_env; then
-    log_warn "Failed to initialize backup system"
-else
-    # Start backup scheduler in standalone mode
-    if ! start_backup_scheduler; then
-        log_warn "Failed to start backup scheduler"
+# Initialize backup system explicitly for standalone mode if enabled
+if [ "${BACKUP_ENABLED}" = "true" ]; then
+    if ! init_backup_env; then
+        log_warn "Failed to initialize backup system"
+    else
+        # Start backup scheduler in standalone mode
+        if ! start_backup_scheduler; then
+            log_warn "Failed to start backup scheduler"
+        fi
     fi
+else
+    log_info "Backup system disabled via BACKUP_ENABLED environment variable"
 fi
 
 # Start monitoring backup status
