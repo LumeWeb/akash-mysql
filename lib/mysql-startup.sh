@@ -43,17 +43,12 @@ init_mysql() {
         rm -f /var/run/mysqld/mysqld.pid
         rm -f /var/run/mysqld/mysqld.sock*
         
-        # Create directory structure
-        mkdir -p "$DATA_DIR"
-        mkdir -p /var/lib/mysql-files
-        chown mysql:mysql "$DATA_DIR" /var/lib/mysql-files
-        chmod 750 "$DATA_DIR" /var/lib/mysql-files
-        
-        # Initialize MySQL with basic settings
+        # Initialize MySQL with explicit paths (directories should be created by root)
         mysqld --initialize-insecure --user=mysql \
-            --datadir=/var/lib/mysql \
+            --datadir="$DATA_DIR" \
             --basedir=/usr \
-            --secure-file-priv=/var/lib/mysql-files
+            --secure-file-priv=/var/lib/mysql-files \
+            --pid-file=/var/run/mysqld/mysqld.pid
             
         # Wait for initialization to complete
         sync
@@ -63,16 +58,29 @@ init_mysql() {
         if [ -n "$MYSQL_ROOT_PASSWORD" ]; then
             log_info "Starting MySQL with skip-grant-tables to set root password..."
             
-            # Start MySQL with skip-grant-tables and skip-networking for security
-            rm -f /var/run/mysqld/mysqld.sock* # Ensure clean socket
+            # Remove any stale files (directories should exist and be owned by mysql)
+            rm -f /var/run/mysqld/mysqld.sock* 
+            rm -f /var/run/mysqld/mysqld.pid
             
-            # Start with error logging
+            # Start with error logging and explicit paths
             mysqld --skip-grant-tables --skip-networking \
-                  --log-error=/var/log/mysql/init-error.log &
+                  --datadir="$DATA_DIR" \
+                  --socket=/var/run/mysqld/mysqld.sock \
+                  --pid-file=/var/run/mysqld/mysqld.pid \
+                  --log-error=/var/log/mysql/init-error.log \
+                  --user=mysql &
             TEMP_MYSQL_PID=$!
             
-            # Give mysqld time to create socket
+            # Give mysqld time to create socket and verify process is running
             sleep 5
+            if ! kill -0 $TEMP_MYSQL_PID 2>/dev/null; then
+                log_error "Temporary MySQL process died immediately"
+                if [ -f "/var/log/mysql/init-error.log" ]; then
+                    log_error "Error log contents:"
+                    cat "/var/log/mysql/init-error.log"
+                fi
+                return 1
+            fi
             
             # Wait for MySQL socket and connectivity
             local max_attempts=30
@@ -147,10 +155,6 @@ start_mysql() {
 
     # Configure static files before startup
     log_info "Configuring MySQL for role: $ROLE"
-    
-    # Ensure MySQL directories exist
-    mkdir -p "$CONFIG_DIR"
-    chmod 755 "$CONFIG_DIR"
     
     if ! generate_mysql_configs; then
         log_error "Failed to generate MySQL configurations"
