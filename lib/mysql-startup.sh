@@ -43,7 +43,13 @@ init_mysql() {
         rm -f /var/run/mysqld/mysqld.pid
         rm -f /var/run/mysqld/mysqld.sock*
         
-        # Initialize MySQL with explicit paths (directories should be created by root)
+        # Verify directory permissions before initialization
+        if [ ! -w "$DATA_DIR" ]; then
+            log_error "Data directory $DATA_DIR is not writable"
+            return 1
+        fi
+        
+        # Initialize MySQL with explicit paths
         mysqld --initialize-insecure --user=mysql \
             --datadir="$DATA_DIR" \
             --basedir=/usr \
@@ -58,7 +64,13 @@ init_mysql() {
         if [ -n "$MYSQL_ROOT_PASSWORD" ]; then
             log_info "Starting MySQL with skip-grant-tables to set root password..."
             
-            # Remove any stale files (directories should exist and be owned by mysql)
+            # Verify socket directory is writable
+            if [ ! -w "$RUN_DIR" ]; then
+                log_error "Socket directory $RUN_DIR is not writable"
+                return 1
+            fi
+            
+            # Remove any stale files
             rm -f /var/run/mysqld/mysqld.sock* 
             rm -f /var/run/mysqld/mysqld.pid
             
@@ -166,14 +178,6 @@ start_mysql() {
         return 1
     fi
 
-    # Ensure required directories exist
-    mkdir -p "$RUN_DIR"
-    chown mysql:mysql "$RUN_DIR"
-    
-    # Ensure data directory exists and has correct permissions
-    mkdir -p /var/lib/mysql
-    chown -R mysql:mysql  "$DATA_DIR"
-    
     # Check for forced master recovery
     FORCE_MASTER_RECOVERY=${FORCE_MASTER_RECOVERY:-0}
     

@@ -11,7 +11,17 @@ source "${LIB_PATH}/core/cron.sh"
 if [ "$(id -u)" = "0" ]; then
     # Ensure correct permissions on key directories
     # Create and set permissions on required directories
-    mkdir -p $DATA_DIR $RUN_DIR $LOG_DIR $CONFIG_DIR
+    mkdir -p $DATA_DIR $RUN_DIR $LOG_DIR $CONFIG_DIR /var/lib/mysql-files
+    
+    # Set proper permissions for MySQL directories
+    chown -R mysql:mysql $DATA_DIR $RUN_DIR $LOG_DIR $CONFIG_DIR /var/lib/mysql-files
+    chmod 750 $DATA_DIR /var/lib/mysql-files
+    chmod 755 $RUN_DIR $LOG_DIR $CONFIG_DIR
+    
+    # Ensure directory is clean for initialization
+    if [ ! -d "$DATA_DIR/mysql" ]; then
+        rm -rf "$DATA_DIR"/*
+    fi
     
     # Create base MySQL configuration
     cat > "/etc/my.cnf" << EOF
