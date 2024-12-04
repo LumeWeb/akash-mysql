@@ -187,6 +187,9 @@ start_mysql() {
     sleep 2
     
     # Start MySQL with configs
+    if [ "$ROLE" != "standalone" ]; then
+        log_info "[INFO] Using Replication Server ID (CRC-32): $SERVER_ID"
+    fi
     log_info "Starting MySQL server..."
     
     # Get and validate configuration

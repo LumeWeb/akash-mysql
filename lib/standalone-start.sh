@@ -17,8 +17,8 @@ log_info "Starting MySQL in standalone mode..."
 CURRENT_ROLE="standalone"
 ROLE="standalone"
 
-# Start MySQL in standalone mode
-if ! start_mysql "$ROLE" 1; then
+# Start MySQL in standalone mode (server_id=1 for standalone)
+if ! start_mysql "$ROLE" 1 "" "${MYSQL_ARGS[@]}"; then
     log_error "Failed to start MySQL server"
     exit 1
 fi
