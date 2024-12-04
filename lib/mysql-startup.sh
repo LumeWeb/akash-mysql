@@ -64,22 +64,45 @@ init_mysql() {
             log_info "Starting MySQL with skip-grant-tables to set root password..."
             
             # Start MySQL with skip-grant-tables and skip-networking for security
-            mysqld --skip-grant-tables --skip-networking &
+            rm -f /var/run/mysqld/mysqld.sock* # Ensure clean socket
+            
+            # Start with error logging
+            mysqld --skip-grant-tables --skip-networking \
+                  --log-error=/var/log/mysql/init-error.log &
             TEMP_MYSQL_PID=$!
             
-            # Wait for MySQL to be ready
+            # Give mysqld time to create socket
+            sleep 5
+            
+            # Wait for MySQL socket and connectivity
             local max_attempts=30
             local attempt=1
             while [ $attempt -le $max_attempts ]; do
-                if mysqladmin -u root -p"${MYSQL_ROOT_PASSWORD}" ping --silent 2>/dev/null; then
-                    break
+                if [ -S "/var/run/mysqld/mysqld.sock" ]; then
+                    if mysql -u root --socket=/var/run/mysqld/mysqld.sock -e "SELECT 1" >/dev/null 2>&1; then
+                        log_info "Temporary MySQL instance is ready"
+                        break
+                    fi
                 fi
+                
+                if [ $((attempt % 5)) -eq 0 ]; then
+                    log_info "Still waiting for temporary MySQL instance (attempt $attempt/$max_attempts)"
+                    if [ -f "/var/log/mysql/init-error.log" ]; then
+                        log_info "Last 5 lines of error log:"
+                        tail -n 5 "/var/log/mysql/init-error.log"
+                    fi
+                fi
+                
                 sleep 1
                 attempt=$((attempt + 1))
             done
             
             if [ $attempt -gt $max_attempts ]; then
                 log_error "Temporary MySQL instance failed to start"
+                if [ -f "/var/log/mysql/init-error.log" ]; then
+                    log_error "Error log contents:"
+                    cat "/var/log/mysql/init-error.log"
+                fi
                 return 1
             fi
             
