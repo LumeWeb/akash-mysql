@@ -55,15 +55,19 @@ handle_promotion_to_master() {
     # Start GTID monitoring
     monitor_gtid
 
-    # Start backup services for master
-    if ! setup_backup_cron; then
-        log_error "Failed to setup backup cron jobs"
-        return 1
-    fi
-    
-    if ! start_streaming_backup_server; then
-        log_error "Failed to start backup streaming server"
-        return 1
+    # Start backup services for master if enabled
+    if [ "${BACKUP_ENABLED}" = "true" ]; then
+        if ! setup_backup_cron; then
+            log_error "Failed to setup backup cron jobs"
+            return 1
+        fi
+        
+        if ! start_streaming_backup_server; then
+            log_error "Failed to start backup streaming server"
+            return 1
+        fi
+    else
+        log_info "Backup services not started - backups disabled"
     fi
 
     # Update our status in etcd
