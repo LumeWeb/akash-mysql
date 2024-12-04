@@ -248,7 +248,7 @@ start_mysql() {
     # Start MySQL
     mysqld \
         --user=mysql \
-        --port="${PORT:-3306}" \
+        --port="${MYSQL_PORT}" \
         --log-error="$LOG_DIR/error.log" \
         --skip-mysqlx \
         --datadir=/var/lib/mysql \

@@ -29,7 +29,7 @@ if [ "$(id -u)" = "0" ]; then
 user = mysql
 pid-file = /var/run/mysqld/mysqld.pid
 socket = ${MYSQL_SOCKET}
-port = ${PORT:-3306}
+port = ${MYSQL_PORT}
 basedir = /usr
 datadir = /var/lib/mysql
 tmpdir = /tmp
@@ -87,13 +87,14 @@ main() {
     
     # Environment setup
     declare -gx HOST
-    declare -gx PORT
+    declare -gx MYSQL_PORT
     declare -gx NODE_ID
     declare -gx CLUSTER_MODE
     declare -gx SERVER_ID
     CLUSTER_MODE=${CLUSTER_MODE:-false}
     HOST=${AKASH_INGRESS_HOST:-localhost}
-    PORT=${PORT:-3306}
+    MYSQL_PORT=${MYSQL_PORT:-3306}
+    export MYSQL_PORT
     
     # Use Akash environment variables directly and export
     NODE_ID=$(echo "${AKASH_INGRESS_HOST}:${AKASH_EXTERNAL_PORT_3306}" | sha256sum | cut -c1-8)
