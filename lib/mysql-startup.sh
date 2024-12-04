@@ -158,6 +158,12 @@ start_mysql() {
             return 1
         fi
         log_info "Recovery completed successfully"
+        
+        # After recovery or if no backup found, ensure MySQL is initialized
+        if ! init_mysql; then
+            log_error "MySQL initialization failed"
+            return 1
+        fi
     else
         # Normal initialization
         if ! init_mysql; then
