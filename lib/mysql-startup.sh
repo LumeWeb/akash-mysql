@@ -318,6 +318,12 @@ start_mysql() {
             log_error "Failed to initialize backup environment"
             return 1
         fi
+        # Start backup scheduler for standalone/master roles
+        if [ "$ROLE" = "standalone" ] || [ "$ROLE" = "master" ]; then
+            if ! start_backup_scheduler; then
+                log_warn "Failed to start backup scheduler"
+            fi
+        fi
     else
         log_info "Skipping backup initialization - backups disabled"
     fi
