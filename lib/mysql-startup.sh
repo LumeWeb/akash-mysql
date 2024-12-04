@@ -122,14 +122,6 @@ start_mysql() {
     shift 3
     local MYSQL_ARGS=("$@")
 
-    # Validate S3 requirements first
-    for var in "${REQUIRED_S3_VARS[@]}"; do
-        if [ -z "${!var}" ]; then
-            log_error "Required S3 variable $var is not set"
-            return 1
-        fi
-    done
-
     # Configure static files before startup
     log_info "Configuring MySQL for role: $ROLE"
     

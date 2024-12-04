@@ -16,7 +16,9 @@ init_backup_env() {
         return 0
     fi
 
-    # Validate required S3 variables
+    log_info "Initializing backup environment"
+
+    # Validate required S3 variables since backups are enabled
     for var in "${REQUIRED_S3_VARS[@]}"; do
         if [ -z "${!var}" ]; then
             log_error "Required S3 variable $var is not set"
