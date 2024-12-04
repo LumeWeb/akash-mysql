@@ -93,7 +93,7 @@ register_node() {
         --arg status "online" \
         --arg role "$initial_role" \
         --arg host "$HOSTNAME" \
-        --arg port "${PORT:-3306}" \
+        --arg port "${MYSQL_PORT}" \
         --arg last_seen "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         --arg gtid "$(get_gtid_position)" \
         --arg connections "${connections:-0}" \
