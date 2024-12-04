@@ -82,8 +82,8 @@ perform_recovery() {
         return 0
     fi
 
-    # For master or standalone, use S3 backups
-    log_info "Using S3 backup for recovery"
+    # For master or standalone, try S3 backups first
+    log_info "Checking for S3 backup for recovery"
     
     # Find latest backup from S3
     local latest_backup
@@ -96,8 +96,9 @@ perform_recovery() {
         --s3-ssl="${S3_SSL}" 2>/dev/null | grep -o 's3://.*full/backup-[0-9-]*' | sort | tail -n1)
     
     if [ -z "$latest_backup" ]; then
-        log_error "No valid backup found in S3 for recovery"
-        return 1
+        log_info "No existing backup found in S3 - this is normal for new deployments"
+        log_info "Proceeding with fresh initialization"
+        return 0
     fi
 
     log_info "Found latest backup in S3: $latest_backup"

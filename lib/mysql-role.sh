@@ -225,13 +225,13 @@ monitor_gtid() {
     fi
 
     (
+        # Use flock for the entire monitoring loop
+        flock -n 200 || {
+            log_warn "Another GTID monitor is running"
+            return 1
+        }
+        
         while true; do
-            # Use flock to prevent concurrent GTID updates
-            (
-                flock -n 200 || { 
-                    log_warn "Another GTID monitor is running"
-                    return 1
-                }
                 
                 # Retry GTID position check a few times before giving up
                 local gtid_attempts=3
@@ -280,7 +280,7 @@ monitor_gtid() {
                 etcdctl put "$ETCD_NODES/$NODE_ID" "$node_status" >/dev/null
             fi
             sleep 5
-        done
+        done 200>/var/run/mysqld/gtid_monitor.lock
     ) &
     GTID_MONITOR_PID=$!
 }

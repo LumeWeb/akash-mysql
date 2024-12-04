@@ -237,13 +237,9 @@ start_mysql() {
 
     # Root password is now set during initialization
 
-    # Initialize backup environment
-    if ! init_backup_env; then
-        log_error "Failed to initialize backup environment"
-        return 1
-    fi
-
     # Process initialization files after MySQL is running
+    
+    # Initialize backup environment after init files are processed
     if [ -d "/docker-entrypoint-initdb.d" ]; then
         log_info "Processing initialization files..."
         local mysql_opts=()
@@ -297,6 +293,12 @@ start_mysql() {
             fi
             log_info "Successfully processed: $f"
         done
+    fi
+
+    # Initialize backup environment after all initialization
+    if ! init_backup_env; then
+        log_error "Failed to initialize backup environment"
+        return 1
     fi
 
     return 0

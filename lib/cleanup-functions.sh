@@ -5,7 +5,7 @@ cleanup() {
   local err=$?
 
   # Stop cron first to prevent any new backup jobs
-  if command -v crond >/dev/null 2>&1; then
+  if [ -n "$CROND_PID" ]; then
       log_info "Stopping cron service..."
       stop_cron
   fi

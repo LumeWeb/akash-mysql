@@ -184,6 +184,7 @@ register_node() {
             if ! etcdctl put "$(get_node_path $NODE_ID)" "$status_json" --lease=$LEASE_ID >/dev/null; then
                 log_error "Failed to update node status in etcd"
             fi
+            sleep 5
         done
     ) &
     HEALTH_UPDATE_PID=$!

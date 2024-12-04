@@ -6,76 +6,68 @@ declare -g CORE_CRON_SOURCED=1
 
 source "${LIB_PATH}/core/logging.sh"
 
+# Global variable for cron daemon PID
+declare -g CROND_PID=""
+
 # Start cron daemon if not running
 start_cron() {
     # First ensure cron is stopped
     stop_cron
 
-    if ! pgrep crond >/dev/null; then
-        log_info "Starting crond daemon"
-        if ! crond; then
-            log_error "Failed to start crond daemon"
-            return 1
-        fi
+    if ! pgrep supercronic >/dev/null; then
+        log_info "Starting supercronic daemon"
         
-        # Verify crond is running
+        # Run supercronic with appropriate flags in background
+        supercronic --json --split-logs --overlapping /etc/cron.d/mysql-backup &
+        CROND_PID=$!
+        
+        # Verify supercronic is running
         sleep 1
-        if ! pgrep crond >/dev/null; then
-            log_error "crond failed to start properly"
+        if ! kill -0 $CROND_PID 2>/dev/null; then
+            log_error "supercronic failed to start properly"
             return 1
         fi
+        log_info "Started supercronic with PID: $CROND_PID"
         return 0
     else
-        log_info "crond already running, reloading configuration"
-        if ! reload_cron; then
-            log_error "Failed to reload crond configuration"
-            return 1
-        fi
+        log_info "supercronic already running"
+        return 0
     fi
     return 0
 }
 
 # Stop cron daemon
 stop_cron() {
-    if pgrep crond >/dev/null; then
-        log_info "Stopping crond daemon"
-        pkill crond
+    if [ -n "$CROND_PID" ]; then
+        log_info "Stopping supercronic daemon (PID: $CROND_PID)"
+        kill $CROND_PID 2>/dev/null || true
         
         # Wait for process to stop
         local timeout=10
         local counter=0
-        while pgrep crond >/dev/null && [ $counter -lt $timeout ]; do
+        while kill -0 $CROND_PID 2>/dev/null && [ $counter -lt $timeout ]; do
             sleep 1
             counter=$((counter + 1))
         done
         
-        if pgrep crond >/dev/null; then
-            log_error "Failed to stop crond daemon gracefully, forcing..."
-            pkill -9 crond
+        if kill -0 $CROND_PID 2>/dev/null; then
+            log_error "Failed to stop supercronic daemon gracefully, forcing..."
+            kill -9 $CROND_PID 2>/dev/null || true
             sleep 1
         fi
         
-        if pgrep crond >/dev/null; then
-            log_error "Failed to stop crond daemon"
-            return 1
-        fi
+        CROND_PID=""
+    else
+        # Cleanup any other supercronic processes
+        pkill supercronic 2>/dev/null || true
     fi
     return 0
 }
 
-# Reload cron configuration
-reload_cron() {
-    if pgrep crond >/dev/null; then
-        log_info "Reloading crond configuration"
-        pkill -HUP crond
-        return $?
-    fi
-    return 1
-}
 
 # Check if cron is running
 is_cron_running() {
-    if pgrep crond >/dev/null; then
+    if pgrep supercronic >/dev/null; then
         return 0
     fi
     return 1

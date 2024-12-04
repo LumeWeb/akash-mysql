@@ -47,6 +47,8 @@ EOF
     chmod 755 $RUN_DIR $LOG_DIR $CONFIG_DIR
     chmod 644 /etc/my.cnf
 
+    touch /var/run/crond.pid && chown mysql:mysql /var/run/crond.pid
+
     # Re-execute script as mysql user
     exec su mysql -s /bin/bash -c "$0 $*"
     exit 1
