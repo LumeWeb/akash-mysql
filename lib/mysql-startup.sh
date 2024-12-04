@@ -83,14 +83,12 @@ init_mysql() {
                 return 1
             fi
             
-            # Set root password and fix privileges
+            # Set root password and fix privileges with enhanced access
             mysql_retry_auth root "${MYSQL_ROOT_PASSWORD}" << EOF
 FLUSH PRIVILEGES;
-CREATE USER IF NOT EXISTS 'root'@'localhost';
-CREATE USER IF NOT EXISTS 'root'@'%';
-ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY '${MYSQL_ROOT_PASSWORD}';
-ALTER USER 'root'@'%' IDENTIFIED WITH caching_sha2_password BY '${MYSQL_ROOT_PASSWORD}';
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION;
+DROP USER IF EXISTS 'root'@'localhost';
+DROP USER IF EXISTS 'root'@'%';
+CREATE USER 'root'@'%' IDENTIFIED WITH caching_sha2_password BY '${MYSQL_ROOT_PASSWORD}';
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
 EOF
