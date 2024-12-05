@@ -24,7 +24,7 @@ if ! start_mysql "$ROLE" 1 "" "${MYSQL_ARGS[@]}"; then
 fi
 
 log_info "MySQL is running in standalone mode"
-log_info "Port: ${PORT}"
+log_info "Port: ${MYSQL_PORT}"
 
 
 # Start monitoring backup status
