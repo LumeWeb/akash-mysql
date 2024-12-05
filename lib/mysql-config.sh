@@ -29,20 +29,11 @@ _get_config() {
 
 # Generate optimized MySQL configurations based on available resources
 generate_mysql_configs() {
-    # Resource detection
-    local env_type="Standard"
+    # Resource detection using cgroups v2
     local mem_source="Unknown"
     local cpu_source="Unknown"
-    
-    # Kubernetes detection
-    if [ -f "/var/run/secrets/kubernetes.io/serviceaccount/namespace" ]; then
-        env_type="Kubernetes"
-        log_info "Detected Kubernetes environment"
-        local k8s_namespace=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
-        log_info "Kubernetes Namespace: $k8s_namespace"
-    fi
 
-    # Memory detection using cgroups v2
+    # Memory detection
     local mem_bytes
     local mem_mb
     if [ -f "/sys/fs/cgroup/memory.max" ]; then
@@ -183,18 +174,6 @@ default_password_lifetime = 0
 #disabled_storage_engines = ''
 #disabled_plugins = "mysql_native_password"
 EOF
-
-    if [ $in_kubernetes -eq 1 ]; then
-        cat >> "$config_file" << EOF
-# Kubernetes Optimizations
-innodb_flush_method = O_DIRECT_NO_FSYNC
-innodb_use_native_aio = 0
-innodb_doublewrite = 0
-innodb_flush_neighbors = 0
-innodb_adaptive_flushing = 1
-innodb_monitor_enable = all
-EOF
-    fi
 
     cat >> "$config_file" << EOF
 # Network Settings
