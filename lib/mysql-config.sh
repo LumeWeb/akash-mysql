@@ -29,63 +29,79 @@ _get_config() {
 
 # Generate optimized MySQL configurations based on available resources
 generate_mysql_configs() {
-    # Detect environment and resources
-    local in_kubernetes=0
+    # Resource detection
     local env_type="Standard"
-    local mem_source="System Memory"
-    local cpu_source="System CPU"
+    local mem_source="Unknown"
+    local cpu_source="Unknown"
     
     # Kubernetes detection
     if [ -f "/var/run/secrets/kubernetes.io/serviceaccount/namespace" ]; then
-        in_kubernetes=1
         env_type="Kubernetes"
         log_info "Detected Kubernetes environment"
-        
-        # Get namespace
         local k8s_namespace=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
         log_info "Kubernetes Namespace: $k8s_namespace"
     fi
 
-    # Memory detection
+    # Memory detection using cgroups v2
     local mem_bytes
     local mem_mb
-    if [ $in_kubernetes -eq 1 ] && [ -f "/sys/fs/cgroup/memory/memory.limit_in_bytes" ]; then
-        mem_source="Kubernetes cgroup limit"
-        mem_bytes=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
-        # Convert to MB and apply 85% limit for k8s overhead
-        mem_mb=$((mem_bytes / 1024 / 1024 * 85 / 100))
-        log_info "Memory Source: Kubernetes cgroup limit (85% allocation)"
+    if [ -f "/sys/fs/cgroup/memory.max" ]; then
+        mem_source="Container cgroups v2"
+        local mem_max=$(cat /sys/fs/cgroup/memory.max)
+        
+        if [ "$mem_max" = "max" ]; then
+            # No limit set, use 85% of available memory
+            mem_bytes=$(grep MemAvailable /proc/meminfo | awk '{print $2 * 1024}')
+            mem_mb=$((mem_bytes / 1024 / 1024 * 85 / 100))
+            log_info "Memory Source: Available memory (85% allocation)"
+        else
+            # Use container limit with 85% allocation
+            mem_bytes=$mem_max
+            mem_mb=$((mem_bytes / 1024 / 1024 * 85 / 100))
+            log_info "Memory Source: Container memory limit (85% allocation)"
+        fi
     else
-        mem_bytes=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
-        mem_mb=$((mem_bytes / 1024))
-        log_info "Memory Source: System memory (100% allocation)"
+        # Fallback to available memory
+        mem_bytes=$(grep MemAvailable /proc/meminfo | awk '{print $2 * 1024}')
+        mem_mb=$((mem_bytes / 1024 / 1024 * 85 / 100))
+        log_info "Memory Source: Available memory (85% allocation)"
     fi
+
+    # Ensure minimum memory allocation
+    mem_mb=$((mem_mb < 512 ? 512 : mem_mb))
 
     if [ -z "$mem_mb" ] || [ "$mem_mb" -eq 0 ]; then
         log_error "Could not determine system memory"
         return 1
     fi
 
-    # CPU detection
+    # CPU detection using cgroups v2
     local cpu_cores
-    if [ $in_kubernetes -eq 1 ] && [ -f "/sys/fs/cgroup/cpu/cpu.cfs_quota_us" ]; then
-        cpu_source="Kubernetes CPU quota"
-        local cpu_quota=$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us)
-        local cpu_period=$(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us)
-        log_info "CPU Quota: ${cpu_quota}us"
-        log_info "CPU Period: ${cpu_period}us"
+    if [ -f "/sys/fs/cgroup/cpu.max" ]; then
+        cpu_source="Container cgroups v2"
+        local cpu_quota_period=$(cat /sys/fs/cgroup/cpu.max)
+        local cpu_quota=$(echo "$cpu_quota_period" | cut -d' ' -f1)
+        local cpu_period=$(echo "$cpu_quota_period" | cut -d' ' -f2)
         
-        if [ $cpu_quota -gt 0 ]; then
-            cpu_cores=$((cpu_quota / cpu_period))
-            log_info "CPU Cores (from quota): $cpu_cores"
-        else
+        if [ "$cpu_quota" = "max" ]; then
+            # No quota set, use available CPUs
             cpu_cores=$(nproc)
-            log_info "CPU Cores (from nproc): $cpu_cores"
+            log_info "CPU Cores (from nproc, no quota): $cpu_cores"
+        else
+            cpu_cores=$((cpu_quota / cpu_period))
+            log_info "CPU Quota: ${cpu_quota}us"
+            log_info "CPU Period: ${cpu_period}us"
+            log_info "CPU Cores (from quota): $cpu_cores"
         fi
     else
+        # Fallback to available CPUs
         cpu_cores=$(nproc)
+        cpu_source="System CPUs"
         log_info "CPU Cores (from system): $cpu_cores"
     fi
+
+    # Ensure at least 1 CPU core
+    cpu_cores=$((cpu_cores < 1 ? 1 : cpu_cores))
 
     if [ -z "$cpu_cores" ] || [ "$cpu_cores" -eq 0 ]; then
         log_error "Could not determine CPU cores"
