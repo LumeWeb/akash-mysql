@@ -276,7 +276,7 @@ configure_mysql_files() {
 [mysqld]
 server-id = $server_id
 bind-address = 0.0.0.0
-port = ${PORT}
+port = ${MYSQL_PORT}
 
 # Binary logging
 log_bin = ${server_id}-bin
