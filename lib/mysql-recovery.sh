@@ -82,22 +82,27 @@ perform_recovery() {
         return 0
     fi
 
-    # For master or standalone, try S3 backups first
-    log_info "Checking for S3 backup for recovery"
-    
-    # Find latest backup from S3
-    local latest_backup
-    latest_backup=$(xtrabackup --backup \
-        --target-dir="s3://${S3_BUCKET}/${S3_PATH}/full/" \
-        --backup-dir=- \
-        --s3-endpoint="${S3_ENDPOINT}" \
-        --s3-access-key="${S3_ACCESS_KEY}" \
-        --s3-secret-key="${S3_SECRET_KEY}" \
-        --s3-ssl="${S3_SSL}" 2>/dev/null | grep -o 's3://.*full/backup-[0-9-]*' | sort | tail -n1)
-    
-    if [ -z "$latest_backup" ]; then
-        log_info "No existing backup found in S3 - this is normal for new deployments"
-        log_info "Proceeding with fresh initialization"
+    # For master or standalone, try S3 backups first if enabled
+    if [ "${BACKUP_ENABLED}" = "true" ]; then
+        log_info "Checking for S3 backup for recovery"
+        
+        # Find latest backup from S3
+        local latest_backup
+        latest_backup=$(xtrabackup --backup \
+            --target-dir="s3://${S3_BUCKET}/${S3_PATH}/full/" \
+            --backup-dir=- \
+            --s3-endpoint="${S3_ENDPOINT}" \
+            --s3-access-key="${S3_ACCESS_KEY}" \
+            --s3-secret-key="${S3_SECRET_KEY}" \
+            --s3-ssl="${S3_SSL}" 2>/dev/null | grep -o 's3://.*full/backup-[0-9-]*' | sort | tail -n1)
+        
+        if [ -z "$latest_backup" ]; then
+            log_info "No existing backup found in S3 - this is normal for new deployments"
+            log_info "Proceeding with fresh initialization"
+            return 0
+        fi
+    else
+        log_info "Backup recovery skipped - backups are disabled"
         return 0
     fi
 
