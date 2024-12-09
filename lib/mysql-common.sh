@@ -176,6 +176,17 @@ wait_for_mysql() {
     return 0
 }
 
+# Check if node is current master according to ProxySQL
+is_proxysql_master() {
+    local master_data
+    master_data=$(etcdctl get "$ETCD_MASTER_KEY" --print-value-only 2>/dev/null)
+    local master_node
+    master_node=$(echo "$master_data" | jq -r '.node_id // empty')
+    
+    [ "$master_node" = "$NODE_ID" ]
+    return $?
+}
+
 # Get current GTID position
 get_gtid_position() {
     local gtid_position

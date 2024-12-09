@@ -297,31 +297,27 @@ watch_role_changes() {
             log_info "Waiting for node registration..."
             sleep 5
             continue
-        fi
+        }
 
-        ROLE=$(echo "$NODE_DATA" | jq -r '.role // empty')
+        # Get current master from etcd
+        MASTER_DATA=$(etcdctl get "$ETCD_MASTER_KEY" --print-value-only 2>/dev/null)
+        MASTER_NODE=$(echo "$MASTER_DATA" | jq -r '.node_id // empty')
 
-        # Skip if role is empty or null
-        if [ -z "$ROLE" ] || [ "$ROLE" = "null" ]; then
-            sleep 5
-            continue
-        fi
-
-        # Only process role change if it's actually different
-        if [ "$ROLE" != "$CURRENT_ROLE" ] || ([ "$ROLE" = "slave" ] && [ $REPLICATION_CONFIGURED -eq 0 ]); then
-            log_info "Role change detected or unconfigured slave needs setup"
-
-            case $ROLE in
-                "master")
-                    handle_promotion_to_master
-                    ;;
-                "slave")
-                    handle_demotion_to_slave
-                    ;;
-            esac
-
-            CURRENT_ROLE="$ROLE"
-            save_role_state "$ROLE"
+        # If we're the designated master
+        if [ "$MASTER_NODE" = "$NODE_ID" ]; then
+            if [ "$CURRENT_ROLE" != "master" ]; then
+                log_info "ProxySQL designated us as master - handling promotion"
+                handle_promotion_to_master
+            fi
+        else
+            # If we're not the master, ensure we're a slave
+            if [ "$CURRENT_ROLE" != "slave" ]; then
+                log_info "We are not the designated master - handling demotion"
+                handle_demotion_to_slave
+            elif [ $REPLICATION_CONFIGURED -eq 0 ]; then
+                log_info "Slave needs replication configuration"
+                handle_demotion_to_slave
+            fi
         fi
 
         sleep 5

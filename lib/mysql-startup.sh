@@ -166,7 +166,9 @@ start_mysql() {
     shift 3
     local MYSQL_ARGS=("$@")
 
-    # Configure static files before startup
+    # Always start as slave initially
+    ROLE="slave"
+    log_info "Starting MySQL initially as slave (waiting for ProxySQL topology)"
     log_info "Configuring MySQL for role: $ROLE"
     
     if ! generate_mysql_configs; then
