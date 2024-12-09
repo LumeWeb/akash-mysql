@@ -36,6 +36,7 @@ detect_recovery_needed() {
 # Validate cluster state before recovery
 validate_cluster_state() {
     local force=${1:-0}
+    local master_validation_timeout=30  # seconds
 
     if [ "$CLUSTER_MODE" != "true" ]; then
         log_info "Standalone mode - cluster validation skipped"
@@ -48,13 +49,42 @@ validate_cluster_state() {
         return 1
     fi
 
-    # Verify no other master exists if we need promotion
+    # Verify no other viable master exists if we need promotion
     local master_info
     master_info=$(etcdctl get "$ETCD_MASTER_KEY" --print-value-only)
     
     if [ -n "$master_info" ] && [ "$force" != "1" ]; then
-        log_error "Cannot restore/promote while viable master exists"
-        return 1
+        log_info "Found master key in etcd, validating master availability..."
+        
+        # Extract master host and port
+        local master_host
+        local master_port
+        master_host=$(get_node_hostname "$master_info")
+        master_port=$(get_node_port "$master_info")
+
+        # Try to connect to master
+        local start_time=$(date +%s)
+        local master_reachable=0
+        
+        while [ $(($(date +%s) - start_time)) -lt $master_validation_timeout ]; do
+            if timeout 5 mysql -h "$master_host" -P "$master_port" -u"$MYSQL_REPL_USERNAME" \
+                -p"$MYSQL_REPL_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; then
+                master_reachable=1
+                break
+            fi
+            sleep 2
+        done
+
+        if [ $master_reachable -eq 1 ]; then
+            log_error "Cannot restore/promote while viable master exists and is reachable"
+            return 1
+        else
+            log_warn "Master key exists but master is unreachable - proceeding with recovery"
+            # Optionally clean up the stale master key
+            if etcdctl del "$ETCD_MASTER_KEY" >/dev/null; then
+                log_info "Cleaned up stale master key"
+            fi
+        fi
     fi
 
     return 0
