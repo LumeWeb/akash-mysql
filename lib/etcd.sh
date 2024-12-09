@@ -110,15 +110,20 @@ register_node() {
     # Start lease keepalive in background
     LEASE_KEEPALIVE_PID=$(start_lease_keepalive "$LEASE_ID")
     
-    # Monitor for lease ID changes
+    # Create named pipe for lease ID updates
+    local lease_pipe="/var/run/mysqld/lease_updates.pipe"
+    rm -f "$lease_pipe"
+    mkfifo "$lease_pipe"
+    
+    # Monitor lease pipe in background
     (
-        while true; do
-            new_lease_id=$(get_current_lease_id "$LEASE_KEEPALIVE_PID")
+        while read -r new_lease_id < "$lease_pipe"; do
             if [ -n "$new_lease_id" ] && [ "$new_lease_id" != "$LEASE_ID" ]; then
                 LEASE_ID="$new_lease_id"
                 log_info "Updated to new lease ID: $LEASE_ID"
+                # Export for other processes
+                echo "$new_lease_id" > "/var/run/mysqld/current_lease_id"
             fi
-            sleep 5
         done
     ) &
 
