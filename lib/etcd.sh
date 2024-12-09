@@ -123,77 +123,11 @@ register_node() {
     etcdctl lease keep-alive $LEASE_ID &
     LEASE_KEEPALIVE_PID=$!
 
-    # Start health status updater in background
-    (
-        while true; do
-            sleep 5
-            check_mysql_health
-            health_status=$?
+    log_info "About to start health status updater background process"
+    log_info "Current LEASE_ID: $LEASE_ID"
+    log_info "Current NODE_ID: $NODE_ID"
+    log_info "Current CURRENT_ROLE: $CURRENT_ROLE"
 
-            # Get current MySQL stats with fallbacks
-            local curr_connections=$(mysqladmin status 2>/dev/null | awk '{print $4}')
-            local curr_uptime=$(mysqladmin status 2>/dev/null | awk '{print $2}')
-
-            local status_json
-            if [ $health_status -ne 0 ]; then
-                status_json=$(jq -n \
-                    --arg status "offline" \
-                    --arg role "$CURRENT_ROLE" \
-                    --arg host "$HOST" \
-                    --arg port "${MYSQL_EXTERNAL_PORT}" \
-                    --arg last_seen "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-                    --arg gtid "$(get_gtid_position)" \
-                    --arg connections "${curr_connections:-0}" \
-                    --arg uptime "${curr_uptime:-0}" \
-                    --arg health_status "$HEALTH_STATUS_DETAILS" \
-                    --arg errors "$health_status" \
-                    '{
-                        status: $status,
-                        role: $role,
-                        host: $host,
-                        port: $port,
-                        last_seen: $last_seen,
-                        gtid_position: $gtid,
-                        health: {
-                            status: $health_status,
-                            connections: ($connections | tonumber),
-                            uptime: ($uptime | tonumber),
-                            errors: ($errors | tonumber)
-                        }
-                    }')
-            else
-                status_json=$(jq -n \
-                    --arg status "online" \
-                    --arg role "$CURRENT_ROLE" \
-                    --arg host "$HOST" \
-                    --arg port "${MYSQL_EXTERNAL_PORT}" \
-                    --arg last_seen "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-                    --arg gtid "$(get_gtid_position)" \
-                    --arg connections "${curr_connections:-0}" \
-                    --arg uptime "${curr_uptime:-0}" \
-                    --arg health_status "$HEALTH_STATUS_DETAILS" \
-                    '{
-                        status: $status,
-                        role: $role,
-                        host: $host,
-                        port: $port,
-                        last_seen: $last_seen,
-                        gtid_position: $gtid,
-                        health: {
-                            status: $health_status,
-                            connections: ($connections | tonumber),
-                            uptime: ($uptime | tonumber)
-                        }
-                    }')
-            fi
-
-            if ! etcdctl put "$(get_node_path $NODE_ID)" "$status_json" --lease=$LEASE_ID >/dev/null; then
-                log_error "Failed to update node status in etcd"
-            fi
-            sleep 5
-        done
-    ) &
-    HEALTH_UPDATE_PID=$!
 
     return $?
 }

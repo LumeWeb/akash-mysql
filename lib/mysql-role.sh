@@ -297,7 +297,7 @@ watch_role_changes() {
             log_info "Waiting for node registration..."
             sleep 5
             continue
-        }
+        fi
 
         # Get current master from etcd
         MASTER_DATA=$(etcdctl get "$ETCD_MASTER_KEY" --print-value-only 2>/dev/null)

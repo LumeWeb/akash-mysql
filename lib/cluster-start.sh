@@ -4,6 +4,7 @@ set -e
 source "${LIB_PATH}/etcd-paths.sh"
 source "${LIB_PATH}/etcd.sh"
 source "${LIB_PATH}/core/logging.sh"
+source "${LIB_PATH}/core/health.sh"
 source "${LIB_PATH}/mysql-common.sh"
 source "${LIB_PATH}/mysql-startup.sh"
 source "${LIB_PATH}/mysql-config.sh"
@@ -65,8 +66,12 @@ if ! verify_gtid_configuration; then
     exit 1
 fi
 
-# Register node and start health monitoring
+# Register node and start monitoring
 register_node
+
+# Start health monitoring after registration
+log_info "Starting health monitoring"
+start_health_updater
 
 # Start role monitoring in background after MySQL is ready
 watch_role_changes &
