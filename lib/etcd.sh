@@ -75,9 +75,15 @@ register_node() {
     local attempt=1
 
     while [ $attempt -le $max_attempts ]; do
-        LEASE_ID=$(etcdctl lease grant 10 -w json | jq -r '.ID')
+        # Get lease in hex format directly
+        local lease_response
+        lease_response=$(etcdctl lease grant 10 -w json)
+        LEASE_ID=$(echo "$lease_response" | jq -r '.ID')
+        
         if [ -n "$LEASE_ID" ]; then
-            log_info "Got valid lease ID: $LEASE_ID"
+            # Convert decimal lease ID to hex
+            LEASE_ID=$(printf '%x' "$LEASE_ID")
+            log_info "Got valid lease ID (hex): $LEASE_ID"
             break
         fi
         log_warn "Failed to get valid lease (attempt $attempt/$max_attempts)"
@@ -117,23 +123,20 @@ register_node() {
             }
         }')
 
-    # Convert decimal lease ID to hex for etcdctl
-    lease_hex=$(printf '%x' "$LEASE_ID")
-    etcdctl put "$(get_node_path $NODE_ID)" "$status_json" --lease="$lease_hex" >/dev/null
+    etcdctl put "$(get_node_path $NODE_ID)" "$status_json" --lease="$LEASE_ID" >/dev/null
 
     # Start lease keepalive in background with JSON handling
     (
         while true; do
-            # Convert decimal lease ID to hex for etcdctl
-            lease_hex=$(printf '%x' "$LEASE_ID")
-            if ! etcdctl lease keep-alive "$lease_hex" -w json >/dev/null 2>&1; then
+            if ! etcdctl lease keep-alive "$LEASE_ID" -w json >/dev/null 2>&1; then
                 log_error "Lost etcd lease keepalive"
                 # Try to get new lease
                 new_lease=$(etcdctl lease grant 10 -w json 2>/dev/null)
                 new_lease_id=$(echo "$new_lease" | jq -r '.ID')
                 if [ -n "$new_lease_id" ]; then
-                    LEASE_ID=$new_lease_id
-                    log_info "Acquired new lease: $LEASE_ID (hex: $(printf '%x' "$new_lease_id"))"
+                    # Convert decimal to hex immediately
+                    LEASE_ID=$(printf '%x' "$new_lease_id")
+                    log_info "Acquired new lease (hex): $LEASE_ID"
                 fi
             fi
             sleep 5
