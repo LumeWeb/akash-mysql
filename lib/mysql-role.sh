@@ -373,7 +373,7 @@ update_node_status() {
         --arg status "$status" \
         --arg role "$new_role" \
         --arg host "$HOST" \
-        --arg port "${PORT:-3306}" \
+        --arg port "${MYSQL_EXTERNAL_PORT}" \
         --arg last_seen "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         --arg gtid "$(get_gtid_position)" \
         '{

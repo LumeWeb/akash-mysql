@@ -79,7 +79,7 @@ cleanup() {
   if [ -n "$NODE_ID" ] && [ -n "$LEASE_ID" ]; then
     status_json=$(jq -n \
       --arg hostname "$HOSTNAME" \
-      --arg port "$PORT" \
+      --arg port "$MYSQL_EXTERNAL_PORT" \
       '{
                 status: "offline",
                 hostname: $hostname,
