@@ -64,6 +64,12 @@ wait_for_etcd() {
 
 # Register node in etcd with lease and health status
 register_node() {
+    log_info "Starting node registration process"
+
+    # Ensure CURRENT_ROLE is set
+    CURRENT_ROLE=${CURRENT_ROLE:-"slave"}
+    log_info "Using role: $CURRENT_ROLE"
+
     # Get a valid lease with retries
     local max_attempts=10
     local attempt=1
@@ -91,7 +97,7 @@ register_node() {
     # Initial registration with all required fields
     local status_json=$(jq -n \
         --arg status "online" \
-        --arg role "$initial_role" \
+        --arg role "$CURRENT_ROLE" \
         --arg host "$HOSTNAME" \
         --arg port "${MYSQL_EXTERNAL_PORT}" \
         --arg last_seen "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \

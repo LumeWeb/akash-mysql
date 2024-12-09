@@ -36,7 +36,9 @@ fi
 
 # Always start as slave initially
 initial_role="slave"
-log_info "Starting MySQL with initial slave role"
+CURRENT_ROLE="$initial_role"
+export CURRENT_ROLE
+log_info "Starting MySQL with initial slave role: $CURRENT_ROLE"
 
 # Start MySQL with configs and proper monitoring
 if ! start_mysql "$initial_role" "$SERVER_ID" "$HOST" "$@"; then
