@@ -265,7 +265,7 @@ monitor_gtid() {
 
                 node_status=$(jq -n \
                     --arg host "$HOST" \
-                    --arg port "$PORT" \
+                    --arg port "${MYSQL_EXTERNAL_PORT}" \
                     --arg last_seen "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
                     --arg gtid "$gtid_position" \
                     --arg role "$current_role" \
