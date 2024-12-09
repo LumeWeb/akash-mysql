@@ -199,46 +199,62 @@ get_gtid_position() {
 check_mysql_health() {
     local errors=0
     local status_details=()
+    local ping_retries=3
+    local ping_wait=2
 
-    # Check process
+    # Check process first
     if ! pgrep mysqld >/dev/null; then
         status_details+=("process:down")
         log_error "MySQL process not running"
         errors=$((errors + 1))
     else
         status_details+=("process:up")
-    fi
+        
+        # Only check connectivity if process is running
+        local ping_success=0
+        local attempt=1
+        
+        while [ $attempt -le $ping_retries ]; do
+            if mysql_retry_auth root "${MYSQL_ROOT_PASSWORD}" mysqladmin ping -h localhost --connect-timeout=5 --silent >/dev/null 2>&1; then
+                ping_success=1
+                break
+            fi
+            log_warn "MySQL ping attempt $attempt/$ping_retries failed, waiting ${ping_wait}s before retry"
+            sleep $ping_wait
+            attempt=$((attempt + 1))
+        done
 
-    # Check connectivity
-    if ! mysql_retry_auth root "${MYSQL_ROOT_PASSWORD}" mysqladmin ping -h localhost --silent >/dev/null 2>&1; then
-        status_details+=("ping:failed")
-        log_error "MySQL not responding to ping"
-        errors=$((errors + 1))
-    else
-        status_details+=("ping:ok")
-    fi
-
-    # Check read capability
-    if ! mysql_retry -e 'SELECT 1' >/dev/null 2>&1; then
-        status_details+=("read:failed")
-        log_error "MySQL cannot execute SELECT"
-        errors=$((errors + 1))
-    else
-        status_details+=("read:ok")
-    fi
-
-    # Only check write capability if we're master
-    if [ "$CURRENT_ROLE" = "master" ]; then
-        if ! mysql_retry -e 'CREATE TABLE IF NOT EXISTS health_check (id INT); DROP TABLE health_check;' mysql >/dev/null 2>&1; then
-            status_details+=("write:failed")
-            log_error "MySQL cannot execute DDL"
+        if [ $ping_success -eq 0 ]; then
+            status_details+=("ping:failed")
+            log_error "MySQL not responding to ping after $ping_retries attempts"
             errors=$((errors + 1))
         else
-            status_details+=("write:ok")
+            status_details+=("ping:ok")
         fi
-    else
-        # For slaves, just mark write as skipped
-        status_details+=("write:skipped")
+
+        # Only proceed with read check if ping succeeded
+        if [ $ping_success -eq 1 ]; then
+            if ! mysql_retry -e 'SELECT 1' >/dev/null 2>&1; then
+                status_details+=("read:failed")
+                log_error "MySQL cannot execute SELECT"
+                errors=$((errors + 1))
+            else
+                status_details+=("read:ok")
+            fi
+
+            # Only check write capability if we're master
+            if [ "$CURRENT_ROLE" = "master" ]; then
+                if ! mysql_retry -e 'CREATE TABLE IF NOT EXISTS health_check (id INT); DROP TABLE health_check;' mysql >/dev/null 2>&1; then
+                    status_details+=("write:failed")
+                    log_error "MySQL cannot execute DDL"
+                    errors=$((errors + 1))
+                else
+                    status_details+=("write:ok")
+                fi
+            else
+                status_details+=("write:skipped")
+            fi
+        fi
     fi
 
     # Export status details for etcd update
