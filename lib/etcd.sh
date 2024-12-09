@@ -70,30 +70,13 @@ register_node() {
     CURRENT_ROLE=${CURRENT_ROLE:-"slave"}
     log_info "Using role: $CURRENT_ROLE"
 
-    # Get a valid lease with retries
-    local max_attempts=10
-    local attempt=1
-
-    while [ $attempt -le $max_attempts ]; do
-        local lease_response
-        lease_response=$(etcdctl lease grant 10 -w json)
-        local decimal_id
-        decimal_id=$(echo "$lease_response" | jq -r '.ID')
-        
-        if [ -n "$decimal_id" ]; then
-            LEASE_ID=$(lease_id_to_hex "$decimal_id")
-            log_info "Got valid lease ID (hex): $LEASE_ID"
-            break
-        fi
-        log_warn "Failed to get valid lease (attempt $attempt/$max_attempts)"
-        sleep 2
-        attempt=$((attempt + 1))
-    done
-
+    # Get a valid lease
+    LEASE_ID=$(get_etcd_lease 10)
     if [ -z "$LEASE_ID" ]; then
-        log_error "Failed to get valid lease after $max_attempts attempts"
+        log_error "Failed to get valid lease"
         return 1
     fi
+    log_info "Got valid lease ID (hex): $LEASE_ID"
 
     # Get MySQL status values with fallbacks
     local connections=$(mysqladmin status 2>/dev/null | awk '{print $4}')
@@ -124,23 +107,20 @@ register_node() {
 
     etcdctl put "$(get_node_path $NODE_ID)" "$status_json" --lease="$LEASE_ID" >/dev/null
 
-    # Start lease keepalive in background with JSON handling
+    # Start lease keepalive in background
+    LEASE_KEEPALIVE_PID=$(start_lease_keepalive "$LEASE_ID")
+    
+    # Monitor for lease ID changes
     (
         while true; do
-            if ! etcdctl lease keep-alive "$LEASE_ID" -w json >/dev/null 2>&1; then
-                log_error "Lost etcd lease keepalive"
-                # Try to get new lease
-                new_lease=$(etcdctl lease grant 10 -w json 2>/dev/null)
-                new_lease_id=$(echo "$new_lease" | jq -r '.ID')
-                if [ -n "$new_lease_id" ]; then
-                    LEASE_ID=$(lease_id_to_hex "$new_lease_id")
-                    log_info "Acquired new lease (hex): $LEASE_ID"
-                fi
+            new_lease_id=$(get_current_lease_id "$LEASE_KEEPALIVE_PID")
+            if [ -n "$new_lease_id" ] && [ "$new_lease_id" != "$LEASE_ID" ]; then
+                LEASE_ID="$new_lease_id"
+                log_info "Updated to new lease ID: $LEASE_ID"
             fi
             sleep 5
         done
     ) &
-    LEASE_KEEPALIVE_PID=$!
 
     log_info "About to start health status updater background process"
     log_info "Current LEASE_ID: $LEASE_ID"

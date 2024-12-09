@@ -40,8 +40,8 @@ cleanup() {
 
   # Stop lease keepalive before MySQL shutdown
   if [ -n "$LEASE_KEEPALIVE_PID" ]; then
-    kill $LEASE_KEEPALIVE_PID 2>/dev/null || true
-    wait $LEASE_KEEPALIVE_PID 2>/dev/null || true
+    stop_lease_keepalive "$LEASE_KEEPALIVE_PID"
+    LEASE_KEEPALIVE_PID=""
   fi
 
   # Finally stop MySQL
