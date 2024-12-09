@@ -75,7 +75,7 @@ register_node() {
     local attempt=1
 
     while [ $attempt -le $max_attempts ]; do
-        LEASE_ID=$(etcdctl lease grant 10 2>/dev/null | awk '{print $2}')
+        LEASE_ID=$(etcdctl lease grant 10 -w json | jq -r '.ID')
         if [ -n "$LEASE_ID" ]; then
             log_info "Got valid lease ID: $LEASE_ID"
             break
@@ -117,10 +117,28 @@ register_node() {
             }
         }')
 
-    etcdctl put "$(get_node_path $NODE_ID)" "$status_json" --lease=$LEASE_ID >/dev/null
+    # Convert decimal lease ID to hex for etcdctl
+    lease_hex=$(printf '%x' "$LEASE_ID")
+    etcdctl put "$(get_node_path $NODE_ID)" "$status_json" --lease="$lease_hex" >/dev/null
 
-    # Start lease keepalive in background
-    etcdctl lease keep-alive $LEASE_ID &
+    # Start lease keepalive in background with JSON handling
+    (
+        while true; do
+            # Convert decimal lease ID to hex for etcdctl
+            lease_hex=$(printf '%x' "$LEASE_ID")
+            if ! etcdctl lease keep-alive "$lease_hex" -w json >/dev/null 2>&1; then
+                log_error "Lost etcd lease keepalive"
+                # Try to get new lease
+                new_lease=$(etcdctl lease grant 10 -w json 2>/dev/null)
+                new_lease_id=$(echo "$new_lease" | jq -r '.ID')
+                if [ -n "$new_lease_id" ]; then
+                    LEASE_ID=$new_lease_id
+                    log_info "Acquired new lease: $LEASE_ID (hex: $(printf '%x' "$new_lease_id"))"
+                fi
+            fi
+            sleep 5
+        done
+    ) &
     LEASE_KEEPALIVE_PID=$!
 
     log_info "About to start health status updater background process"
