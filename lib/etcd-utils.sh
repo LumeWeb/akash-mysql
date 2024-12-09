@@ -47,9 +47,30 @@ start_lease_keepalive() {
     local lease_id=$1
     
     (
-        # Use exec to replace shell process with etcdctl
-        # This allows the keepalive to run continuously without polling
-        exec etcdctl lease keep-alive "$lease_id" -w json >/dev/null 2>&1
+        # Run keepalive in background
+        etcdctl lease keep-alive "$lease_id" -w json >/dev/null 2>&1 &
+        local keepalive_child=$!
+
+        # Monitor the keepalive process
+        while true; do
+            if ! kill -0 $keepalive_child 2>/dev/null; then
+                log_error "Lost etcd lease keepalive process"
+                # Try to get new lease
+                new_lease=$(etcdctl lease grant 10 -w json 2>/dev/null)
+                new_lease_id=$(echo "$new_lease" | jq -r '.ID')
+                if [ -n "$new_lease_id" ]; then
+                    lease_id=$(lease_id_to_hex "$new_lease_id")
+                    log_info "Acquired new lease (hex): $lease_id"
+                    # Export the new lease ID for parent process
+                    echo "$lease_id" > "/tmp/etcd_lease_$BASHPID"
+                    
+                    # Start new keepalive process
+                    etcdctl lease keep-alive "$lease_id" -w json >/dev/null 2>&1 &
+                    keepalive_child=$!
+                fi
+            fi
+            sleep 5
+        done
     ) &
     
     local keepalive_pid=$!

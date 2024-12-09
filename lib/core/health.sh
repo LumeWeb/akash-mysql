@@ -80,6 +80,15 @@ start_health_updater() {
                     }')
             fi
 
+            # Get current lease ID from keepalive process
+            local current_lease_id
+            if [ -f "/tmp/etcd_lease_$LEASE_KEEPALIVE_PID" ]; then
+                current_lease_id=$(cat "/tmp/etcd_lease_$LEASE_KEEPALIVE_PID")
+                if [ -n "$current_lease_id" ]; then
+                    LEASE_ID="$current_lease_id"
+                fi
+            fi
+
             log_info "Attempting to update etcd with status"
             log_info "Node path: $(get_node_path $NODE_ID)"
             log_info "Status JSON: $status_json"
@@ -90,6 +99,8 @@ start_health_updater() {
             else
                 log_info "Successfully updated node status in etcd"
             fi
+
+            # Add a small delay between health checks
             sleep 5
         done
     ) &
