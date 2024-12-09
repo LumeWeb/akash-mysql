@@ -80,13 +80,9 @@ start_health_updater() {
                     }')
             fi
 
-            # Get current lease ID from keepalive process
-            local current_lease_id
-            if [ -f "/tmp/etcd_lease_$LEASE_KEEPALIVE_PID" ]; then
-                current_lease_id=$(cat "/tmp/etcd_lease_$LEASE_KEEPALIVE_PID")
-                if [ -n "$current_lease_id" ]; then
-                    LEASE_ID="$current_lease_id"
-                fi
+            # Get current lease ID from environment
+            if [ -n "$ETCD_LEASE_ID" ]; then
+                LEASE_ID="$ETCD_LEASE_ID"
             fi
 
             log_info "Attempting to update etcd with status"

@@ -61,8 +61,8 @@ start_lease_keepalive() {
                 if [ -n "$new_lease_id" ]; then
                     lease_id=$(lease_id_to_hex "$new_lease_id")
                     log_info "Acquired new lease (hex): $lease_id"
-                    # Export the new lease ID for parent process
-                    echo "$lease_id" > "/tmp/etcd_lease_$BASHPID"
+                    # Export the new lease ID via environment variable
+                    export ETCD_LEASE_ID="$lease_id"
                     
                     # Start new keepalive process
                     etcdctl lease keep-alive "$lease_id" -w json >/dev/null 2>&1 &
@@ -110,7 +110,7 @@ stop_lease_keepalive() {
     if [ -n "$pid" ]; then
         kill $pid 2>/dev/null || true
         wait $pid 2>/dev/null || true
-        rm -f "/tmp/etcd_lease_$pid" 2>/dev/null || true
+        unset ETCD_LEASE_ID
     fi
 }
 
