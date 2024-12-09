@@ -133,8 +133,7 @@ register_node() {
                 new_lease=$(etcdctl lease grant 10 -w json 2>/dev/null)
                 new_lease_id=$(echo "$new_lease" | jq -r '.ID')
                 if [ -n "$new_lease_id" ]; then
-                    # Convert decimal to hex immediately
-                    LEASE_ID=$(printf '%x' "$new_lease_id")
+                    LEASE_ID=$(lease_id_to_hex "$new_lease_id")
                     log_info "Acquired new lease (hex): $LEASE_ID"
                 fi
             fi
