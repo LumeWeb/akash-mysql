@@ -5,6 +5,7 @@
 declare -g MYSQL_BACKUP_SOURCED=1
 
 source "${LIB_PATH}/core/logging.sh"
+source "${LIB_PATH}/etcd-utils.sh"
 source "${LIB_PATH}/core/constants.sh"
 source "${LIB_PATH}/mysql-common.sh"
 

@@ -75,14 +75,13 @@ register_node() {
     local attempt=1
 
     while [ $attempt -le $max_attempts ]; do
-        # Get lease in hex format directly
         local lease_response
         lease_response=$(etcdctl lease grant 10 -w json)
-        LEASE_ID=$(echo "$lease_response" | jq -r '.ID')
+        local decimal_id
+        decimal_id=$(echo "$lease_response" | jq -r '.ID')
         
-        if [ -n "$LEASE_ID" ]; then
-            # Convert decimal lease ID to hex
-            LEASE_ID=$(printf '%x' "$LEASE_ID")
+        if [ -n "$decimal_id" ]; then
+            LEASE_ID=$(lease_id_to_hex "$decimal_id")
             log_info "Got valid lease ID (hex): $LEASE_ID"
             break
         fi
