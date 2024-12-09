@@ -107,26 +107,9 @@ register_node() {
 
     etcdctl put "$(get_node_path $NODE_ID)" "$status_json" --lease="$LEASE_ID" >/dev/null
 
-    # Start lease keepalive in background
+    # Start lease keepalive in background - this handles all lease monitoring
     LEASE_KEEPALIVE_PID=$(start_lease_keepalive "$LEASE_ID")
     
-    # Create named pipe for lease ID updates
-    local lease_pipe="/var/run/mysqld/lease_updates.pipe"
-    rm -f "$lease_pipe"
-    mkfifo "$lease_pipe"
-    
-    # Monitor lease pipe in background
-    (
-        while read -r new_lease_id < "$lease_pipe"; do
-            if [ -n "$new_lease_id" ] && [ "$new_lease_id" != "$LEASE_ID" ]; then
-                LEASE_ID="$new_lease_id"
-                log_info "Updated to new lease ID: $LEASE_ID"
-                # Export for other processes
-                echo "$new_lease_id" > "/var/run/mysqld/current_lease_id"
-            fi
-        done
-    ) &
-
     log_info "About to start health status updater background process"
     log_info "Current LEASE_ID: $LEASE_ID"
     log_info "Current NODE_ID: $NODE_ID"
