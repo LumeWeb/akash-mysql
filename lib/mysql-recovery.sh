@@ -154,7 +154,7 @@ perform_recovery() {
         local backup_dir="/var/backup/mysql_backup_$(date +%Y%m%d_%H%M%S)"
         log_info "Backing up existing data to $backup_dir"
         mkdir -p "$backup_dir"
-        cp -a "${DATA_DIR}"/* "$backup_dir/" 2>/dev/null || true
+        rsync -av --delete "${DATA_DIR}/" "$backup_dir/" 2>/dev/null || true
     fi
 
     # For cluster mode, validate topology first
