@@ -181,6 +181,7 @@ max_connect_errors = 10000
 max_allowed_packet = 64M
 wait_timeout = 600
 interactive_timeout = 600
+host_cache_size = 0  # Replaces skip-host-cache
 
 # InnoDB Settings
 innodb_buffer_pool_size = ${innodb_buffer_pool_size}M
@@ -209,7 +210,7 @@ slow_query_log = 1
 slow_query_log_file = "$LOG_DIR/slow-query.log"
 long_query_time = 2
 log_queries_not_using_indexes = 0           # Disabled by default
-expire_logs_days = 7
+binlog_expire_logs_seconds = 604800         # 7 days in seconds (replaces expire-logs-days)
 min_examined_row_limit = 1000
 
 # Character Set
@@ -306,8 +307,8 @@ sync_binlog = 1
 # Relay log settings (in case of failover)
 relay_log = ${server_id}--relay-bin
 relay_log_index = ${server_id}-relay-bin.index
-master_info_repository = TABLE
-relay_log_info_repository = TABLE
+source_info_repository = TABLE              # Replaces master_info_repository
+relay_log_info_repository = FILE            # Changed to FILE as TABLE is deprecated
 relay_log_recovery = ON
 relay_log_purge = ON
 
@@ -342,7 +343,7 @@ relay_log_purge = ON
 
 # Replication performance
 replica_parallel_workers = ${cpu_cores:-4}
-replica_parallel_type = LOGICAL_CLOCK
+replica_preserve_commit_order = ON          # Replaces replica_parallel_type
 skip_replica_start = ON
 
 # GTID settings
