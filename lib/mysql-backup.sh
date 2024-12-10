@@ -9,6 +9,38 @@ source "${LIB_PATH}/etcd-utils.sh"
 source "${LIB_PATH}/core/constants.sh"
 source "${LIB_PATH}/mysql-common.sh"
 
+# List latest backup from S3
+list_latest_backup() {
+    if [ "${BACKUP_ENABLED}" != "true" ]; then
+        return 1
+    fi
+    
+    # Validate S3 credentials
+    for var in "${REQUIRED_S3_VARS[@]}"; do
+        if [ -z "${!var}" ]; then
+            log_error "Required S3 variable $var is not set"
+            return 1
+        fi
+    done
+    
+    # Try to list latest backup
+    latest_backup=$(xtrabackup --backup \
+        --target-dir="s3://${S3_BUCKET}/${S3_PATH}/full/" \
+        --backup-dir=- \
+        --s3-endpoint="${S3_ENDPOINT}" \
+        --s3-access-key="${S3_ACCESS_KEY}" \
+        --s3-secret-key="${S3_SECRET_KEY}" \
+        --s3-ssl="${S3_SSL}" 2>/dev/null | \
+        grep -o 's3://.*full/backup-[0-9-]*' | sort | tail -n1)
+        
+    if [ -n "$latest_backup" ]; then
+        echo "$latest_backup"
+        return 0
+    fi
+    
+    return 1
+}
+
 # Initialize backup environment and validate all required settings
 init_backup_env() {
     # Check if backups are enabled

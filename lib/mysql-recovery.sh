@@ -10,24 +10,32 @@ source "${LIB_PATH}/mysql-role.sh"
 
 # Detect if recovery is needed
 detect_recovery_needed() {
-    # Check for corrupt data directory
-    if [ ! -f "${DATA_DIR}/ibdata1" ] || [ ! -d "${DATA_DIR}/mysql" ]; then
-        log_warn "Data directory appears corrupt or empty"
-        return 0
+    # For completely new installations, don't trigger recovery
+    if [ ! -d "${DATA_DIR}/mysql" ] && [ ! -f "${DATA_DIR}/ibdata1" ]; then
+        return 1
     fi
 
-    # Check for crash recovery files
-    if [ -f "${DATA_DIR}/ib_logfile0" ]; then
-        if grep -q "corrupt" "${LOG_DIR}/error.log" 2>/dev/null; then
-            log_warn "Found corruption markers in error log"
+    # Only check for corruption if we had a previous installation
+    if [ -f "${DATA_DIR}/ibdata1" ] || [ -d "${DATA_DIR}/mysql" ]; then
+        # Check for corrupt data directory
+        if [ ! -f "${DATA_DIR}/ibdata1" ] || [ ! -d "${DATA_DIR}/mysql" ]; then
+            log_warn "Data directory appears corrupt"
             return 0
         fi
-    fi
 
-    # Check for incomplete shutdown
-    if [ -f "${DATA_DIR}/aria_log_control" ]; then
-        log_warn "Found aria control file indicating unclean shutdown"
-        return 0
+        # Check for crash recovery files
+        if [ -f "${DATA_DIR}/ib_logfile0" ]; then
+            if grep -q "corrupt" "${LOG_DIR}/error.log" 2>/dev/null; then
+                log_warn "Found corruption markers in error log"
+                return 0
+            fi
+        fi
+
+        # Check for incomplete shutdown
+        if [ -f "${DATA_DIR}/aria_log_control" ]; then
+            log_warn "Found aria control file indicating unclean shutdown"
+            return 0
+        fi
     fi
 
     return 1

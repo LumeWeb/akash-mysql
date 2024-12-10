@@ -48,3 +48,6 @@ declare -gr REQUIRED_BACKUP_VARS=(
 # S3 defaults
 declare -gr S3_SSL="${S3_SSL:-false}"
 declare -gr S3_PATH="${S3_PATH:-backups}"
+
+# Recovery preferences
+declare -gr RECOVER_FROM_BACKUP="${RECOVER_FROM_BACKUP:-true}"

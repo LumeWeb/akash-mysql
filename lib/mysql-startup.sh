@@ -184,22 +184,46 @@ start_mysql() {
     # Check for forced master recovery
     FORCE_MASTER_RECOVERY=${FORCE_MASTER_RECOVERY:-0}
     
-    # Check if recovery is needed
-    if detect_recovery_needed; then
-        log_warn "Recovery needed - initiating recovery workflow"
+    # Check initialization/recovery needs
+    if [ ! -d "${DATA_DIR}/mysql" ] && [ ! -f "${DATA_DIR}/ibdata1" ]; then
+        log_info "Empty data directory detected"
+        
+        # Check if S3 backup recovery is possible and desired
+        if [ "${BACKUP_ENABLED}" = "true" ] && [ "${RECOVER_FROM_BACKUP:-true}" = "true" ]; then
+            log_info "Checking for available S3 backups..."
+            
+            # Try to list latest backup
+            if latest_backup=$(list_latest_backup); then
+                log_info "Found S3 backup: $latest_backup"
+                log_info "Initiating backup recovery workflow"
+                
+                if ! perform_recovery "$FORCE_MASTER_RECOVERY"; then
+                    log_error "Backup recovery failed"
+                    return 1
+                fi
+            else
+                log_info "No S3 backups found - proceeding with fresh initialization"
+                if ! init_mysql; then
+                    log_error "MySQL initialization failed"
+                    return 1
+                fi
+            fi
+        else
+            log_info "Proceeding with fresh initialization (backups disabled or recovery not requested)"
+            if ! init_mysql; then
+                log_error "MySQL initialization failed"
+                return 1
+            fi
+        fi
+    elif detect_recovery_needed; then
+        # Handle corruption recovery for existing installations
+        log_warn "Corruption detected in existing data directory"
         if ! perform_recovery "$FORCE_MASTER_RECOVERY"; then
             log_error "Recovery failed"
             return 1
         fi
-        log_info "Recovery completed successfully"
-        
-        # After recovery or if no backup found, ensure MySQL is initialized
-        if ! init_mysql; then
-            log_error "MySQL initialization failed"
-            return 1
-        fi
     else
-        # Normal initialization
+        # Normal startup for existing data
         if ! init_mysql; then
             log_error "MySQL initialization failed"
             return 1
