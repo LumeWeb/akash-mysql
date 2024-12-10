@@ -367,6 +367,21 @@ start_mysql() {
         local auth_attempts=0
         local auth_success=0
         
+        # Filter initialization files based on cluster mode
+        local init_files=()
+        for f in /docker-entrypoint-initdb.d/*; do
+            # Skip if not a file
+            [ ! -f "$f" ] && continue
+            
+            # In non-cluster mode, skip replication user setup
+            if [ "$CLUSTER_MODE" != "true" ] && [[ "$f" == *"create-repl-user.sql" ]]; then
+                log_info "Skipping replication user setup in non-cluster mode: $f"
+                continue
+            fi
+            
+            init_files+=("$f")
+        done
+        
         while [ $auth_attempts -lt 3 ] && [ $auth_success -eq 0 ]; do
             if [ $auth_attempts -eq 0 ]; then
                 # First try: with password
@@ -393,10 +408,7 @@ start_mysql() {
             return 1
         fi
         
-        for f in /docker-entrypoint-initdb.d/*; do
-            # Skip if not a file
-            [ -f "$f" ] || continue
-            
+        for f in "${init_files[@]}"; do
             log_info "Processing initialization file: $f"
             # Expand environment variables in SQL files before executing
             if [[ "$f" == *.sql ]]; then
