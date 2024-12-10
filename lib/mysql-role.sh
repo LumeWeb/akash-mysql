@@ -299,11 +299,10 @@ watch_role_changes() {
             continue
         fi
 
-        # Get current master from etcd
-        MASTER_DATA=$(etcdctl get "$ETCD_MASTER_KEY" --print-value-only 2>/dev/null)
-        MASTER_NODE=$(echo "$MASTER_DATA" | jq -r '.node_id // empty')
+        # Get current master node ID from etcd
+        MASTER_NODE=$(etcdctl get "$ETCD_MASTER_KEY" --print-value-only 2>/dev/null)
 
-        # If we're the designated master
+        # If we're the designated master (direct node ID comparison)
         if [ "$MASTER_NODE" = "$NODE_ID" ]; then
             if [ "$CURRENT_ROLE" != "master" ]; then
                 log_info "ProxySQL designated us as master - handling promotion"
