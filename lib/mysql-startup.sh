@@ -25,8 +25,11 @@ process_init_file() {
 init_mysql() {
     log_info "Checking if MySQL initialization is needed..."
     
-    # Check if data directory is empty or not properly initialized
-    if [ ! -d "/var/lib/mysql/mysql" ] || [ ! -f "/var/lib/mysql/ibdata1" ] || [ ! -f "/var/lib/mysql/mysql.ibd" ]; then
+    # Source initialization checks
+    source "${LIB_PATH}/mysql-init-checks.sh"
+    
+    # Check initialization state
+    if ! check_mysql_initialized "$DATA_DIR"; then
         log_info "MySQL data directory is empty, initializing..."
         
         # Create initialization lock

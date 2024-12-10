@@ -22,21 +22,19 @@ detect_mysql_state() {
         return 0
     fi
     
-    # Case 1: Completely new installation - more thorough check
-    if [ ! -d "${DATA_DIR}/mysql" ] || \
-       [ ! -f "${DATA_DIR}/ibdata1" ] || \
-       [ ! -f "${DATA_DIR}/auto.cnf" ] || \
-       [ ! -f "${DATA_DIR}/mysql/user.ibd" ]; then
+    # Source initialization checks
+    source "${LIB_PATH}/mysql-init-checks.sh"
+    
+    # Case 1: Check if fresh installation needed
+    if ! check_mysql_initialized "$DATA_DIR"; then
         log_info "Fresh installation needed - missing critical files"
         return 0
     fi
 
-    # Case 2: Check for corruption markers first
-    if [ -f "${DATA_DIR}/ib_logfile0" ] || [ -f "${DATA_DIR}/ib_logfile1" ]; then
-        if grep -q "corrupt\|Invalid\|error\|Cannot create redo log\|Table .* is marked as crashed\|InnoDB: Database page corruption" "${LOG_DIR}/error.log" 2>/dev/null; then
-            log_warn "Found corruption markers in error log"
-            return 2
-        fi
+    # Case 2: Check for corruption
+    if check_mysql_corruption "$DATA_DIR" "$LOG_DIR"; then
+        log_warn "Found corruption markers in error log"
+        return 2
     fi
 
     # Case 3: Check for valid installation with enhanced validation
