@@ -143,7 +143,7 @@ EOF
             fi
             
             # Shutdown MySQL gracefully
-            log_info "Shutting down temporary MySQL instance..."
+            log_info "Shutting down temporary MySQL instance..."/ch
             kill $TEMP_MYSQL_PID
             wait $TEMP_MYSQL_PID 2>/dev/null || true
             
