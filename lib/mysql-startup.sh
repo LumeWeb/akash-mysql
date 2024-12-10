@@ -151,6 +151,7 @@ EOF
         fi
         
         log_info "MySQL initialization completed"
+        rm -f "${RUN_DIR}/init.lock"
         return 0
     else
         log_info "MySQL data directory already initialized"

@@ -16,28 +16,47 @@ source "${LIB_PATH}/mysql-role.sh"
 detect_mysql_state() {
     log_info "Detecting MySQL installation state..."
     
-    # Case 1: Completely new installation
-    if [ ! -d "${DATA_DIR}/mysql" ] && [ ! -f "${DATA_DIR}/ibdata1" ]; then
-        log_info "Fresh installation needed - no existing data"
+    # Check if initialization is in progress
+    if [ -f "${RUN_DIR}/init.lock" ]; then
+        log_info "MySQL initialization in progress, treating as fresh install"
+        return 0
+    }
+    
+    # Case 1: Completely new installation - more thorough check
+    if [ ! -d "${DATA_DIR}/mysql" ] || \
+       [ ! -f "${DATA_DIR}/ibdata1" ] || \
+       [ ! -f "${DATA_DIR}/auto.cnf" ] || \
+       [ ! -f "${DATA_DIR}/mysql/user.ibd" ]; then
+        log_info "Fresh installation needed - missing critical files"
         return 0
     fi
 
     # Case 2: Check for corruption markers first
     if [ -f "${DATA_DIR}/ib_logfile0" ] || [ -f "${DATA_DIR}/ib_logfile1" ]; then
-        if grep -q "corrupt\|Invalid\|error\|Cannot create redo log" "${LOG_DIR}/error.log" 2>/dev/null; then
+        if grep -q "corrupt\|Invalid\|error\|Cannot create redo log\|Table .* is marked as crashed\|InnoDB: Database page corruption" "${LOG_DIR}/error.log" 2>/dev/null; then
             log_warn "Found corruption markers in error log"
             return 2
         fi
     fi
 
-    # Case 3: Check for valid installation
+    # Case 3: Check for valid installation with enhanced validation
     if [ -d "${DATA_DIR}/mysql" ] && \
        [ -f "${DATA_DIR}/ibdata1" ] && \
        [ -f "${DATA_DIR}/auto.cnf" ]; then
         
+        # Check for critical system tables
+        if [ ! -f "${DATA_DIR}/mysql/user.ibd" ] || \
+           [ ! -f "${DATA_DIR}/mysql/tables.ibd" ] || \
+           [ ! -f "${DATA_DIR}/mysql/innodb_table_stats.ibd" ]; then
+            log_warn "Missing critical system tables"
+            return 2
+        }
+        
         # Additional corruption checks
-        if [ -f "${DATA_DIR}/aria_log_control" ]; then
-            log_warn "Found aria control file indicating unclean shutdown"
+        if [ -f "${DATA_DIR}/aria_log_control" ] || \
+           [ -f "${DATA_DIR}/multi-master.info" ] || \
+           [ -f "${DATA_DIR}/#innodb_temp" ]; then
+            log_warn "Found indicators of unclean shutdown or corruption"
             return 2
         fi
 
@@ -45,7 +64,7 @@ detect_mysql_state() {
         if ! mysqld --validate-config >/dev/null 2>&1; then
             log_warn "MySQL configuration validation failed"
             return 2
-        fi
+        }
         
         log_info "Valid existing installation detected"
         return 1
