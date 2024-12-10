@@ -41,7 +41,8 @@ CURRENT_ROLE="$initial_role"
 export CURRENT_ROLE
 log_info "Starting MySQL with initial slave role: $CURRENT_ROLE"
 
-# Start MySQL with configs and proper monitoring
+# Start MySQL server initialization
+log_info "Starting MySQL server initialization..."
 if ! start_mysql "$initial_role" "$SERVER_ID" "$HOST" "$@"; then
     log_error "Failed to start MySQL server"
     error_json=$(jq -n \
@@ -53,27 +54,36 @@ if ! start_mysql "$initial_role" "$SERVER_ID" "$HOST" "$@"; then
     exit 1
 fi
 
-# Wait for MySQL to be really ready
+# Wait for MySQL to be fully ready
+log_info "Waiting for MySQL to be fully ready..."
 if ! wait_for_mysql "${MYSQL_START_TIMEOUT:-60}" "${MYSQL_ROOT_PASSWORD}"; then
     log_error "MySQL failed to become ready"
     exit 1
 fi
-log_info "MySQL server is ready"
 
 # Verify GTID configuration
+log_info "Verifying GTID configuration..."
 if ! verify_gtid_configuration; then
     log_error "GTID configuration verification failed"
     exit 1
 fi
 
-# Register node in etcd
-register_node
+log_info "MySQL is fully initialized and running"
 
-# Start role monitoring in background
+# Register node in cluster
+log_info "Registering node in cluster..."
+if ! register_node; then
+    log_error "Failed to register node"
+    exit 1
+fi
+
+# Only start role monitoring after MySQL is fully ready
+log_info "Starting role monitoring..."
 watch_role_changes &
 ROLE_WATCH_PID=$!
 
 # Start health updater now that MySQL is fully configured
+log_info "Starting health updater..."
 if ! start_health_updater; then
     log_error "Failed to start health updater"
     exit 1
