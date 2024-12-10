@@ -68,7 +68,7 @@ register_node() {
 
     # Check and clean up stale entry
     local stale_entry
-    stale_entry=$(etcdctl get "$ETCD_NODES/$NODE_ID" --print-value-only 2>/dev/null)
+    stale_entry=$(get_node_info "$NODE_ID")
     if [ -n "$stale_entry" ]; then
         log_warn "Found stale entry for node $NODE_ID - cleaning up"
         if ! etcdctl del "$ETCD_NODES/$NODE_ID" >/dev/null; then
