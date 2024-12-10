@@ -182,16 +182,19 @@ perform_recovery() {
         return 1
     fi
 
-    # Try backup recovery if enabled
-    if [ "${BACKUP_ENABLED}" = "true" ]; then
+    # Try backup recovery only if explicitly enabled
+    if [ "${BACKUP_ENABLED}" = "true" ] && [ "${RECOVER_FROM_BACKUP}" = "true" ]; then
+        log_info "Backup recovery enabled, attempting restore..."
         if restore_from_backup; then
             log_info "Successfully restored from backup"
             return 0
         fi
-        log_info "No backup available or restore failed"
+        log_info "No backup available or restore failed, falling back to fresh initialization"
+    else
+        log_info "Backup recovery disabled, proceeding with fresh initialization"
     fi
 
-    # If we get here, perform fresh initialization
+    # Perform fresh initialization
     log_info "Performing fresh initialization"
     if ! init_mysql; then
         log_error "Failed to initialize MySQL"
@@ -201,7 +204,12 @@ perform_recovery() {
     return 0
 }
 
-    log_info "Found latest backup in S3: $latest_backup"
+    if [ -n "$latest_backup" ]; then
+        log_info "Found latest backup in S3: $latest_backup"
+    else
+        log_info "No backup found in S3"
+        return 1
+    fi
 
     # Stop MySQL if running
     if pgrep mysqld >/dev/null; then
