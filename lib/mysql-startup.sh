@@ -29,6 +29,9 @@ init_mysql() {
     if [ ! -d "/var/lib/mysql/mysql" ] || [ ! -f "/var/lib/mysql/ibdata1" ] || [ ! -f "/var/lib/mysql/mysql.ibd" ]; then
         log_info "MySQL data directory is empty, initializing..."
         
+        # Create initialization lock
+        touch "${RUN_DIR}/init.lock"
+        
         # Gracefully stop any running MySQL instances
         if [ -f /var/run/mysqld/mysqld.pid ]; then
             mysqladmin shutdown 2>/dev/null || true

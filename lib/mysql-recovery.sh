@@ -20,7 +20,7 @@ detect_mysql_state() {
     if [ -f "${RUN_DIR}/init.lock" ]; then
         log_info "MySQL initialization in progress, treating as fresh install"
         return 0
-    }
+    fi
     
     # Case 1: Completely new installation - more thorough check
     if [ ! -d "${DATA_DIR}/mysql" ] || \
@@ -50,7 +50,7 @@ detect_mysql_state() {
            [ ! -f "${DATA_DIR}/mysql/innodb_table_stats.ibd" ]; then
             log_warn "Missing critical system tables"
             return 2
-        }
+        fi
         
         # Additional corruption checks
         if [ -f "${DATA_DIR}/aria_log_control" ] || \
@@ -64,7 +64,7 @@ detect_mysql_state() {
         if ! mysqld --validate-config >/dev/null 2>&1; then
             log_warn "MySQL configuration validation failed"
             return 2
-        }
+        fi
         
         log_info "Valid existing installation detected"
         return 1
