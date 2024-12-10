@@ -14,10 +14,10 @@ process_init_file() {
     local mysql=( "$@" )
 
     case "$f" in
-        *.sh)     log_info "Running $f"; . "$f" ;;
-        *.sql)    log_info "Running $f"; mysql_retry "${mysql[@]}" < "$f"; echo ;;
-        *.sql.gz) log_info "Running $f"; gunzip -c "$f" | mysql_retry "${mysql[@]}"; echo ;;
-        *)        log_info "Ignoring $f" ;;
+         *.sh)     log_info "Running $f"; . "$f" ;;
+         *.sql)    log_info "Running $f"; mysql_retry "${mysql[@]}" < "$f" >/dev/null 2>&1 ;;
+         *.sql.gz) log_info "Running $f"; gunzip -c "$f" | mysql_retry "${mysql[@]}" >/dev/null 2>&1 ;;
+         *)        log_info "Ignoring $f" ;;
     esac
 }
 
@@ -340,7 +340,7 @@ start_mysql() {
                 mysql_opts=( -uroot -p"${MYSQL_ROOT_PASSWORD}" )
             fi
             
-            if mysqladmin -u root -p"${MYSQL_ROOT_PASSWORD}" ping --silent 2>/dev/null; then
+             if mysqladmin -u root -p"${MYSQL_ROOT_PASSWORD}" ping -s >/dev/null 2>&1; then
                 auth_success=1
                 break
             fi
