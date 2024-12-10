@@ -60,6 +60,20 @@ if ! wait_for_mysql "${MYSQL_START_TIMEOUT:-60}" "${MYSQL_ROOT_PASSWORD}"; then
 fi
 log_info "MySQL server is ready"
 
+# Apply any pending read-only configuration that was deferred during startup
+if [ -n "$PENDING_READONLY" ] && [ "$PENDING_READONLY" -eq 1 ]; then
+    log_info "Applying pending read-only configuration"
+    if mysql_retry_auth root "${MYSQL_ROOT_PASSWORD}" -e "
+        SET GLOBAL read_only = ON;
+        SET GLOBAL super_read_only = ON;"; then
+        log_info "Successfully applied pending read-only configuration"
+        unset PENDING_READONLY
+    else
+        log_error "Failed to apply pending read-only configuration"
+        exit 1
+    fi
+fi
+
 # Verify GTID configuration
 if ! verify_gtid_configuration; then
     log_error "GTID configuration verification failed"
