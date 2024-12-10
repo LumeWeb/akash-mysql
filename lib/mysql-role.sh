@@ -29,9 +29,15 @@ save_role_state() {
 handle_promotion_to_master() {
     log_info "Handling promotion to source (primary) role"
 
+    # Set role first to prevent race conditions
+    CURRENT_ROLE="master"
+    save_role_state "master"
+
     # Stop any existing backup services first
     if ! stop_cron; then
         log_error "Failed to stop existing cron jobs"
+        CURRENT_ROLE="slave"  # Reset role on failure
+        save_role_state "slave"
         return 1
     fi
     
@@ -49,6 +55,8 @@ handle_promotion_to_master() {
 
     if [ $? -ne 0 ]; then
         log_error "Failed to configure node as source"
+        CURRENT_ROLE="slave"  # Reset role on failure
+        save_role_state "slave"
         return 1
     fi
 
@@ -223,25 +231,35 @@ handle_demotion_to_slave() {
 
 # Monitor GTID changes and update etcd
 monitor_gtid() {
+    local lock_file="/var/run/mysqld/gtid_monitor.lock"
+    
+    # Kill existing monitor if running
     if [ -n "$GTID_MONITOR_PID" ]; then
         kill $GTID_MONITOR_PID 2>/dev/null || true
         wait $GTID_MONITOR_PID 2>/dev/null || true
+        GTID_MONITOR_PID=""
     fi
 
     # Clean up stale lock file
-    rm -f /var/run/mysqld/gtid_monitor.lock
+    rm -f "$lock_file"
 
     (
-        # Use flock for the entire monitoring loop
-        flock -n 200 || {
+        # Open lock file with proper file descriptor
+        exec 200>"$lock_file"
+        
+        # Try to acquire lock
+        if ! flock -n 200; then
             log_warn "Another GTID monitor is running"
+            exec 200>&-  # Close FD before returning
             return 1
-        }
+        fi
+        
+        # Set trap to release lock on exit
+        trap 'exec 200>&-' EXIT
         
         while true; do
-                
-                # Retry GTID position check a few times before giving up
-                local gtid_attempts=3
+            # Retry GTID position check a few times before giving up
+            local gtid_attempts=3
                 while [ $gtid_attempts -gt 0 ]; do
                     if gtid_position=$(get_gtid_position); then
                         break
