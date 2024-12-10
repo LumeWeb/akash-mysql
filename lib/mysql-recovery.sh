@@ -202,22 +202,6 @@ perform_recovery() {
     fi
 
     return 0
-
-    # Always proceed with fresh initialization if we get here
-    log_info "Performing fresh initialization"
-    if ! init_mysql; then
-        log_error "Failed to initialize MySQL"
-        return 1
-    fi
-
-    # Perform fresh initialization
-    log_info "Performing fresh initialization"
-    if ! init_mysql; then
-        log_error "Failed to initialize MySQL"
-        return 1
-    fi
-
-    return 0
 }
 
     if [ -n "$latest_backup" ]; then
