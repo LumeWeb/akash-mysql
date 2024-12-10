@@ -108,12 +108,8 @@ handle_demotion_to_slave() {
                 SET GLOBAL super_read_only = ON;"
 
             if [ $? -ne 0 ]; then
-                # If MySQL isn't running yet, just set flags for later
-                log_warn "MySQL not ready - deferring read-only configuration"
-                export PENDING_READONLY=1
-                REPLICATION_CONFIGURED=0
-                update_node_status "$NODE_ID" "starting" "slave"
-                return 0
+                log_error "Failed to configure standalone read-only mode"
+                return 1
             fi
 
             REPLICATION_CONFIGURED=0
