@@ -115,8 +115,10 @@ register_node() {
     log_info "Current NODE_ID: $NODE_ID"
     log_info "Current CURRENT_ROLE: $CURRENT_ROLE"
 
+    # Actually start the health updater
+    start_health_updater
 
-    return $?
+    return 0
 }
 
 # Get the etcd path for a node

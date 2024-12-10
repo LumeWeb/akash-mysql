@@ -66,12 +66,8 @@ if ! verify_gtid_configuration; then
     exit 1
 fi
 
-# Register node and start monitoring
+# Register node and start monitoring (health updater is started within register_node)
 register_node
-
-# Start health monitoring after registration
-log_info "Starting health monitoring"
-start_health_updater
 
 # Start role monitoring in background after MySQL is ready
 watch_role_changes &
