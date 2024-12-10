@@ -36,6 +36,7 @@ tmpdir = /tmp
 bind-address = 0.0.0.0
 log-error = /var/log/mysql/error.log
 secure-file-priv = NULL
+log_error_suppression_list='MY-013360'
 
 !includedir /etc/my.cnf.d
 EOF
