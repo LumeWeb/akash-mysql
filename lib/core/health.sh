@@ -23,11 +23,17 @@ start_health_updater() {
             local curr_connections=$(mysqladmin status 2>/dev/null | awk '{print $4}')
             local curr_uptime=$(mysqladmin status 2>/dev/null | awk '{print $2}')
 
+            # Get current node info from etcd
+            local node_info
+            node_info=$(get_node_info "$NODE_ID")
+            local current_role
+            current_role=$(echo "$node_info" | jq -r '.role // "slave"')
+
             local status_json
             if [ $health_status -ne 0 ]; then
                 status_json=$(jq -n \
                     --arg status "offline" \
-                    --arg role "$CURRENT_ROLE" \
+                    --arg role "$current_role" \
                     --arg host "$HOST" \
                     --arg port "${MYSQL_EXTERNAL_PORT}" \
                     --arg last_seen "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -53,7 +59,7 @@ start_health_updater() {
             else
                 status_json=$(jq -n \
                     --arg status "online" \
-                    --arg role "$CURRENT_ROLE" \
+                    --arg role "$current_role" \
                     --arg host "$HOST" \
                     --arg port "${MYSQL_EXTERNAL_PORT}" \
                     --arg last_seen "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
