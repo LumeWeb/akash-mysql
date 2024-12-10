@@ -81,30 +81,22 @@ register_node() {
     # Export lease ID for other processes
     export ETCD_LEASE_ID="$LEASE_ID"
 
-    # Get MySQL status values with fallbacks
-    local connections=$(mysqladmin status 2>/dev/null | awk '{print $4}')
-    local uptime=$(mysqladmin status 2>/dev/null | awk '{print $2}')
-
-    # Initial registration with all required fields
+    # Initial registration with basic info
     local status_json=$(jq -n \
-        --arg status "online" \
+        --arg status "starting" \
         --arg role "$CURRENT_ROLE" \
         --arg host "$HOSTNAME" \
         --arg port "${MYSQL_EXTERNAL_PORT}" \
         --arg last_seen "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-        --arg gtid "$(get_gtid_position)" \
-        --arg connections "${connections:-0}" \
-        --arg uptime "${uptime:-0}" \
         '{
             status: $status,
             role: $role,
             host: $host,
             port: $port,
             last_seen: $last_seen,
-            gtid_position: $gtid,
             health: {
-                connections: ($connections | tonumber),
-                uptime: ($uptime | tonumber)
+                connections: 0,
+                uptime: 0
             }
         }')
 
@@ -122,14 +114,6 @@ register_node() {
         return 1
     fi
     log_info "Started lease keepalive with PID: $LEASE_KEEPALIVE_PID"
-    
-    # Start health updater with current lease ID
-    log_info "Starting health status updater"
-    if ! start_health_updater; then
-        log_error "Failed to start health updater"
-        return 1
-    fi
-    log_info "Started health updater successfully"
 
     return 0
 }

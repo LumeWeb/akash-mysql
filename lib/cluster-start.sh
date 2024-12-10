@@ -66,10 +66,17 @@ if ! verify_gtid_configuration; then
     exit 1
 fi
 
-# Register node and start monitoring (health updater is started within register_node)
+# Register node in etcd
 register_node
 
-# Start role monitoring in background after MySQL is ready
+# Start health updater now that MySQL is running
+if ! start_health_updater; then
+    log_error "Failed to start health updater"
+    exit 1
+fi
+log_info "Started health updater successfully"
+
+# Start role monitoring in background
 watch_role_changes &
 ROLE_WATCH_PID=$!
 
