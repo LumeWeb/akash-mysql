@@ -539,6 +539,12 @@ update_node_status() {
     etcdctl put "$ETCD_NODES/$node_id" "$status_json" --lease=$LEASE_ID >/dev/null
 }
 
+# Get role from JSON data
+get_role_from_json() {
+    local json_data=$1
+    echo "$json_data" | jq -r '.role // "slave"'
+}
+
 # Get current node info
  get_node_info() {
      local node=$1
