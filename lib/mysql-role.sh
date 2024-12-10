@@ -30,12 +30,7 @@ handle_promotion_to_master() {
     log_info "Handling promotion to source (primary) role"
 
     # Stop any existing GTID monitor first
-    if [ -n "$GTID_MONITOR_PID" ]; then
-        log_info "Stopping existing GTID monitor (PID: $GTID_MONITOR_PID)"
-        kill $GTID_MONITOR_PID 2>/dev/null || true
-        wait $GTID_MONITOR_PID 2>/dev/null || true
-        GTID_MONITOR_PID=""
-    fi
+    stop_gtid_monitor
 
     # Set role first to prevent race conditions
     CURRENT_ROLE="master"
@@ -237,16 +232,22 @@ handle_demotion_to_slave() {
     return 1
 }
 
-# Monitor GTID changes and update etcd
-monitor_gtid() {
-    local lock_file="/var/run/mysqld/gtid_monitor.lock"
-    
-    # Kill existing monitor if running
+# Stop GTID monitor safely
+stop_gtid_monitor() {
     if [ -n "$GTID_MONITOR_PID" ]; then
+        log_info "Stopping existing GTID monitor (PID: $GTID_MONITOR_PID)"
         kill $GTID_MONITOR_PID 2>/dev/null || true
         wait $GTID_MONITOR_PID 2>/dev/null || true
         GTID_MONITOR_PID=""
     fi
+}
+
+# Monitor GTID changes and update etcd
+monitor_gtid() {
+    local lock_file="/var/run/mysqld/gtid_monitor.lock"
+    
+    # Stop any existing monitor
+    stop_gtid_monitor
 
     # Clean up stale lock file
     rm -f "$lock_file"

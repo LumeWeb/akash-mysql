@@ -58,10 +58,7 @@ cleanup() {
   fi
 
   # Stop GTID monitor if running
-  if [ -n "$GTID_MONITOR_PID" ]; then
-    kill $GTID_MONITOR_PID 2>/dev/null || true
-    wait $GTID_MONITOR_PID 2>/dev/null || true
-  fi
+  stop_gtid_monitor
 
   # Stop backup scheduler if running
   if [ -n "$BACKUP_SCHEDULER_PID" ]; then
