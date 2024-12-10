@@ -242,14 +242,31 @@ handle_demotion_to_slave() {
 stop_gtid_monitor() {
     if [ -n "$GTID_MONITOR_PID" ]; then
         log_info "Stopping existing GTID monitor (PID: $GTID_MONITOR_PID)"
-        if ! kill $GTID_MONITOR_PID 2>/dev/null; then
-            log_error "Failed to stop GTID monitor process"
-            return 1
+        
+        # Check if process exists before trying to kill it
+        if kill -0 $GTID_MONITOR_PID 2>/dev/null; then
+            if ! kill $GTID_MONITOR_PID 2>/dev/null; then
+                log_error "Failed to stop GTID monitor process"
+                return 1
+            fi
+            
+            # Wait with timeout to avoid hanging
+            local timeout=10
+            local counter=0
+            while kill -0 $GTID_MONITOR_PID 2>/dev/null && [ $counter -lt $timeout ]; do
+                sleep 1
+                counter=$((counter + 1))
+            done
+            
+            # If process still exists after timeout, force kill
+            if kill -0 $GTID_MONITOR_PID 2>/dev/null; then
+                log_warn "GTID monitor process didn't exit gracefully, forcing..."
+                kill -9 $GTID_MONITOR_PID 2>/dev/null || true
+            fi
+        else
+            log_info "GTID monitor process already terminated"
         fi
-        if ! wait $GTID_MONITOR_PID 2>/dev/null; then
-            log_error "Failed to wait for GTID monitor process"
-            return 1
-        fi
+        
         GTID_MONITOR_PID=""
     fi
     return 0
