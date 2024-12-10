@@ -66,6 +66,18 @@ wait_for_etcd() {
 register_node() {
     log_info "Starting node registration process"
 
+    # Check and clean up stale entry
+    local stale_entry
+    stale_entry=$(etcdctl get "$ETCD_NODES/$NODE_ID" --print-value-only 2>/dev/null)
+    if [ -n "$stale_entry" ]; then
+        log_warn "Found stale entry for node $NODE_ID - cleaning up"
+        if ! etcdctl del "$ETCD_NODES/$NODE_ID" >/dev/null; then
+            log_error "Failed to clean up stale node entry"
+            return 1
+        fi
+        log_info "Successfully cleaned up stale node entry"
+    fi
+
     # Ensure CURRENT_ROLE is set
     CURRENT_ROLE=${CURRENT_ROLE:-"slave"}
     log_info "Using role: $CURRENT_ROLE"
