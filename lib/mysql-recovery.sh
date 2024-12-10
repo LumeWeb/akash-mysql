@@ -191,7 +191,14 @@ perform_recovery() {
         fi
         log_info "No backup available or restore failed, falling back to fresh initialization"
     else
-        log_info "Backup recovery disabled, proceeding with fresh initialization"
+        log_info "Backup recovery disabled or not requested, proceeding with fresh initialization"
+    fi
+
+    # Always proceed with fresh initialization if we get here
+    log_info "Performing fresh initialization"
+    if ! init_mysql; then
+        log_error "Failed to initialize MySQL"
+        return 1
     fi
 
     # Perform fresh initialization
