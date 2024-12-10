@@ -166,9 +166,15 @@ start_mysql() {
     shift 3
     local MYSQL_ARGS=("$@")
 
-    # Always start as slave initially
-    ROLE="slave"
-    log_info "Starting MySQL initially as slave (waiting for ProxySQL topology)"
+    if [ "$CLUSTER_MODE" = "true" ]; then
+        # In cluster mode, start as slave initially
+        ROLE="slave"
+        log_info "Starting MySQL initially as slave (waiting for ProxySQL topology)"
+    else
+        # In standalone mode, use standalone role
+        ROLE="standalone"
+        log_info "Starting MySQL in standalone mode"
+    fi
     log_info "Configuring MySQL for role: $ROLE"
     
     if ! generate_mysql_configs; then
