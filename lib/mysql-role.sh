@@ -90,7 +90,10 @@ handle_demotion_to_slave() {
     log_info "Handling demotion to replica role"
     
     # Stop GTID monitor if running
-    stop_gtid_monitor
+    if ! stop_gtid_monitor; then
+        log_error "Failed to stop GTID monitor before demotion"
+        return 1
+    fi
     
     # Stop backup services first before any role change
     if ! stop_cron; then
@@ -239,10 +242,17 @@ handle_demotion_to_slave() {
 stop_gtid_monitor() {
     if [ -n "$GTID_MONITOR_PID" ]; then
         log_info "Stopping existing GTID monitor (PID: $GTID_MONITOR_PID)"
-        kill $GTID_MONITOR_PID 2>/dev/null || true
-        wait $GTID_MONITOR_PID 2>/dev/null || true
+        if ! kill $GTID_MONITOR_PID 2>/dev/null; then
+            log_error "Failed to stop GTID monitor process"
+            return 1
+        fi
+        if ! wait $GTID_MONITOR_PID 2>/dev/null; then
+            log_error "Failed to wait for GTID monitor process"
+            return 1
+        fi
         GTID_MONITOR_PID=""
     fi
+    return 0
 }
 
 # Monitor GTID changes and update etcd
@@ -250,7 +260,10 @@ monitor_gtid() {
     local lock_file="/var/run/mysqld/gtid_monitor.lock"
     
     # Stop any existing monitor
-    stop_gtid_monitor
+    if ! stop_gtid_monitor; then
+        log_error "Failed to stop existing GTID monitor"
+        return 1
+    fi
 
     # Clean up stale lock file
     rm -f "$lock_file"

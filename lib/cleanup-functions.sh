@@ -58,7 +58,9 @@ cleanup() {
   fi
 
   # Stop GTID monitor if running
-  stop_gtid_monitor
+  if ! stop_gtid_monitor; then
+    log_error "Failed to stop GTID monitor during cleanup"
+  fi
 
   # Stop backup scheduler if running
   if [ -n "$BACKUP_SCHEDULER_PID" ]; then
