@@ -25,7 +25,7 @@ if detect_mysql_state; then
         1) log_info "Valid installation detected" ;;
         2) 
             log_warn "Recovery needed - attempting repair"
-            if ! perform_recovery 1; then
+            if ! perform_recovery 0; then
                 log_error "Recovery failed"
                 exit 1
             fi
