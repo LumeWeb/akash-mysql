@@ -89,6 +89,9 @@ handle_promotion_to_master() {
 handle_demotion_to_slave() {
     log_info "Handling demotion to replica role"
     
+    # Stop GTID monitor if running
+    stop_gtid_monitor
+    
     # Stop backup services first before any role change
     if ! stop_cron; then
         log_error "Failed to stop cron jobs"
