@@ -307,8 +307,7 @@ sync_binlog = 1
 # Relay log settings (in case of failover)
 relay_log = ${server_id}--relay-bin
 relay_log_index = ${server_id}-relay-bin.index
-source_info_repository = TABLE              # Replaces master_info_repository
-relay_log_info_repository = FILE            # Changed to FILE as TABLE is deprecated
+relay_log_info_repository = TABLE
 relay_log_recovery = ON
 relay_log_purge = ON
 
@@ -335,20 +334,19 @@ binlog_cache_size = 4M
 # Relay log settings
 relay_log = ${server_id}-relay-bin
 relay_log_index = ${server_id}-relay-bin.index
-source_info_repository = TABLE              # Replaces master_info_repository
-relay_log_info_repository = FILE            # Changed to FILE as TABLE is deprecated
+relay_log_info_repository = TABLE
 relay_log_recovery = ON
 relay_log_purge = ON
 
 # Replication performance
 replica_parallel_workers = ${cpu_cores:-4}
-replica_preserve_commit_order = ON          # Replaces replica_parallel_type
+replica_preserve_commit_order = ON
 skip_replica_start = ON
 
 # GTID settings
 gtid_mode = ON
 enforce_gtid_consistency = ON
-log_replica_updates = ON                    # Replaces log_slave_updates
+log_replica_updates = ON
 EOF
             ;;
 
