@@ -37,7 +37,7 @@ ensure_role_consistency() {
     
     if [ -n "$node_info" ]; then
         local etcd_role
-        etcd_role=$(echo "$node_info" | jq -r '.role // empty')
+        etcd_role=$(get_role_from_json "$node_info")
         
         if [ "$etcd_role" != "$current_role" ]; then
             log_warn "Role mismatch detected - etcd: $etcd_role, local: $current_role"
