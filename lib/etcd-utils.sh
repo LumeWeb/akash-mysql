@@ -46,74 +46,74 @@ get_etcd_lease() {
 start_lease_keepalive() {
     local lease_id=$1
     
+    # Create named pipe for lease updates if it doesn't exist
+    local lease_pipe="/var/run/mysqld/lease_updates.pipe"
+    [ -p "$lease_pipe" ] || mkfifo "$lease_pipe"
+    
+    # Start the main keepalive process
     (
-        # Run keepalive in background
+        # Start keepalive in background
         etcdctl lease keep-alive "$lease_id" -w json >/dev/null 2>&1 &
-        local keepalive_child=$!
-
+        local keepalive_pid=$!
+        
+        # Store the PID for cleanup
+        echo $keepalive_pid > "/var/run/mysqld/keepalive.pid"
+        
         # Monitor the keepalive process
-        while true; do
-            if ! kill -0 $keepalive_child 2>/dev/null; then
-                log_error "Lost etcd lease keepalive process"
+        while kill -0 $keepalive_pid 2>/dev/null; do
+            sleep 5
+            
+            # Verify lease is still valid
+            if ! etcdctl lease timetolive "$lease_id" >/dev/null 2>&1; then
+                log_error "Lease $lease_id is no longer valid"
+                kill $keepalive_pid 2>/dev/null || true
+                
                 # Try to get new lease
                 new_lease=$(etcdctl lease grant 10 -w json 2>/dev/null)
                 new_lease_id=$(echo "$new_lease" | jq -r '.ID')
                 if [ -n "$new_lease_id" ]; then
                     lease_id=$(lease_id_to_hex "$new_lease_id")
                     log_info "Acquired new lease (hex): $lease_id"
-                    # Write new lease ID to pipe and file
-                    echo "$lease_id" > "/var/run/mysqld/lease_updates.pipe" &
-                    echo "$lease_id" > "/var/run/mysqld/current_lease_id"
+                    echo "$lease_id" > "$lease_pipe" &
                     
                     # Start new keepalive process
                     etcdctl lease keep-alive "$lease_id" -w json >/dev/null 2>&1 &
-                    keepalive_child=$!
-                fi
-            fi
-            sleep 5
-        done
-    ) &
-    
-    local keepalive_pid=$!
-    
-    # Start a separate monitor process
-    (
-        while true; do
-            # Check if keepalive process is still running
-            if ! kill -0 $keepalive_pid 2>/dev/null; then
-                log_error "Lost etcd lease keepalive process"
-                # Try to get new lease
-                new_lease=$(etcdctl lease grant 10 -w json 2>/dev/null)
-                new_lease_id=$(echo "$new_lease" | jq -r '.ID')
-                if [ -n "$new_lease_id" ]; then
-                    lease_id=$(lease_id_to_hex "$new_lease_id")
-                    log_info "Acquired new lease (hex): $lease_id"
-                    # Write new lease ID to pipe and file
-                    echo "$lease_id" > "/var/run/mysqld/lease_updates.pipe" &
-                    echo "$lease_id" > "/var/run/mysqld/current_lease_id"
-                    
-                    # Start new keepalive process
-                    (
-                        exec etcdctl lease keep-alive "$lease_id" -w json >/dev/null 2>&1
-                    ) &
                     keepalive_pid=$!
+                    echo $keepalive_pid > "/var/run/mysqld/keepalive.pid"
                 fi
             fi
-            sleep 5
         done
     ) &
     
-    echo $!
+    local monitor_pid=$!
+    echo $monitor_pid > "/var/run/mysqld/lease_monitor.pid"
+    
+    # Return immediately while keeping track of the PID
+    echo $monitor_pid
+    return 0
 }
 
 # Stop lease keepalive process
 stop_lease_keepalive() {
     local pid=$1
+    
+    # Stop the keepalive child process if it exists
+    if [ -f "/var/run/mysqld/keepalive.pid" ]; then
+        kill $(cat "/var/run/mysqld/keepalive.pid") 2>/dev/null || true
+        rm -f "/var/run/mysqld/keepalive.pid"
+    fi
+    
+    # Stop the monitor process
     if [ -n "$pid" ]; then
         kill $pid 2>/dev/null || true
         wait $pid 2>/dev/null || true
-        unset ETCD_LEASE_ID
     fi
+    
+    # Clean up the named pipe and monitor PID file
+    rm -f "/var/run/mysqld/lease_updates.pipe"
+    rm -f "/var/run/mysqld/lease_monitor.pid"
+    
+    unset ETCD_LEASE_ID
 }
 
 # Get current lease ID
