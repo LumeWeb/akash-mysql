@@ -16,16 +16,12 @@ start_health_updater() {
     (
         log_info "Starting health status updater background process (PID: $$)"
         while true; do
-            log_info "Running health check update cycle"
             check_mysql_health
             health_status=$?
-            log_info "Health check status: $health_status"
 
             # Get current MySQL stats with fallbacks
             local curr_connections=$(mysqladmin status 2>/dev/null | awk '{print $4}')
             local curr_uptime=$(mysqladmin status 2>/dev/null | awk '{print $2}')
-            
-            log_info "Current stats - Connections: ${curr_connections:-0}, Uptime: ${curr_uptime:-0}"
 
             local status_json
             if [ $health_status -ne 0 ]; then
@@ -85,15 +81,8 @@ start_health_updater() {
                 LEASE_ID="$ETCD_LEASE_ID"
             fi
 
-            log_info "Attempting to update etcd with status"
-            log_info "Node path: $(get_node_path $NODE_ID)"
-            log_info "Status JSON: $status_json"
-            log_info "Lease ID: $LEASE_ID"
-
             if ! etcdctl put "$(get_node_path $NODE_ID)" "$status_json" --lease=$LEASE_ID >/dev/null; then
                 log_error "Failed to update node status in etcd"
-            else
-                log_info "Successfully updated node status in etcd"
             fi
 
             # Add a small delay between health checks
