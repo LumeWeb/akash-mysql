@@ -226,6 +226,12 @@ start_mysql() {
 
     local DATADIR="$(_get_config 'datadir' "${MYSQL_ARGS[@]}")"
 
+    # Initialize MySQL if needed
+    if ! init_mysql; then
+        log_error "MySQL initialization failed"
+        return 1
+    fi
+
     # Ensure plugin directory is clean
     rm -rf /var/lib/mysql/plugin/*
     
@@ -237,7 +243,6 @@ start_mysql() {
     # Start log monitoring in background
     monitor_log "$ERROR_LOG" "/var/run/mysqld/error_monitor.pid"
     
-
     # Kill any existing MySQL processes
     pkill mysqld || true
     
@@ -259,6 +264,13 @@ start_mysql() {
         --socket="${MYSQL_SOCKET}" &
 
     MYSQL_PID=$!
+
+    # Wait for MySQL to be ready
+    if ! wait_for_mysql $MYSQL_START_TIMEOUT "${MYSQL_ROOT_PASSWORD}"; then
+        log_error "MySQL failed to start within timeout"
+        kill $MYSQL_PID 2>/dev/null || true
+        return 1
+    fi
 
     # Check if MySQL process is still running
     if ! kill -0 $MYSQL_PID 2>/dev/null; then
