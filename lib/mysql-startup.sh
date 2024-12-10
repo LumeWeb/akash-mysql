@@ -73,13 +73,18 @@ init_mysql() {
             return 1
         fi
 
-        # Initialize MySQL with explicit paths and error logging
+        # Initialize MySQL with minimal configuration
         if ! mysqld --initialize-insecure --user=mysql \
             --datadir="$DATA_DIR" \
             --basedir=/usr \
             --secure-file-priv=/var/lib/mysql-files \
             --pid-file=/var/run/mysqld/mysqld.pid \
-            --log-error=/var/log/mysql/init-error.log; then
+            --log-error=/var/log/mysql/init-error.log \
+            --innodb-buffer-pool-size=32M \
+            --innodb-log-file-size=48M \
+            --max-connections=10 \
+            --performance-schema=OFF \
+            --skip-log-bin; then
             log_error "MySQL initialization failed"
             if [ -f "/var/log/mysql/init-error.log" ]; then
                 log_error "Initialization error log:"
