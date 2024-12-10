@@ -283,7 +283,7 @@ sync_binlog = 1
 # GTID settings
 gtid_mode = ON
 enforce_gtid_consistency = ON
-log_slave_updates = ON
+log_replica_updates = ON
 
 # Standalone optimizations
 innodb_flush_log_at_trx_commit = 1
@@ -314,7 +314,7 @@ relay_log_purge = ON
 # GTID settings
 gtid_mode = ON
 enforce_gtid_consistency = ON
-log_slave_updates = ON
+log_replica_updates = ON
 
 innodb_flush_log_at_trx_commit = 1
 EOF
@@ -341,9 +341,9 @@ relay_log_recovery = ON
 relay_log_purge = ON
 
 # Replication performance
-slave_parallel_workers = ${cpu_cores:-4}
-slave_parallel_type = LOGICAL_CLOCK
-skip_slave_start = ON
+replica_parallel_workers = ${cpu_cores:-4}
+replica_parallel_type = LOGICAL_CLOCK
+skip_replica_start = ON
 
 # GTID settings
 gtid_mode = ON
