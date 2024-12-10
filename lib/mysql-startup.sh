@@ -7,6 +7,7 @@ declare -g MYSQL_STARTUP_SOURCED=1
 source "${LIB_PATH}/core/logging.sh"
 source "${LIB_PATH}/mysql-common.sh"
 source "${LIB_PATH}/mysql-config.sh"
+source "${LIB_PATH}/mysql-init-checks.sh"
 
 # Process initialization files
 process_init_file() {
@@ -24,9 +25,6 @@ process_init_file() {
 # Initialize MySQL database if needed
 init_mysql() {
     log_info "Checking if MySQL initialization is needed..."
-    
-    # Source initialization checks
-    source "${LIB_PATH}/mysql-init-checks.sh"
     
     # Check initialization state
     if ! check_mysql_initialized "$DATA_DIR"; then
