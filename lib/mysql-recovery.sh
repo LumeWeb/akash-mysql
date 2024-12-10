@@ -5,6 +5,7 @@
 declare -g MYSQL_RECOVERY_SOURCED=1
 
 source "${LIB_PATH}/core/logging.sh"
+source "${LIB_PATH}/mysql-init-checks.sh"
 source "${LIB_PATH}/mysql-backup.sh"
 source "${LIB_PATH}/mysql-role.sh"
 
@@ -21,9 +22,6 @@ detect_mysql_state() {
         log_info "MySQL initialization in progress, treating as fresh install"
         return 0
     fi
-    
-    # Source initialization checks
-    source "${LIB_PATH}/mysql-init-checks.sh"
     
     # Case 1: Check if fresh installation needed
     if ! check_mysql_initialized "$DATA_DIR"; then
