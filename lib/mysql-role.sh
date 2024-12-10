@@ -228,6 +228,9 @@ monitor_gtid() {
         wait $GTID_MONITOR_PID 2>/dev/null || true
     fi
 
+    # Clean up stale lock file
+    rm -f /var/run/mysqld/gtid_monitor.lock
+
     (
         # Use flock for the entire monitoring loop
         flock -n 200 || {
