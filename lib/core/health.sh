@@ -27,7 +27,7 @@ start_health_updater() {
             local node_info
             node_info=$(get_node_info "$NODE_ID")
             local current_role
-            current_role=$(get_role_from_json "$node_info")
+            current_role=$(get_node_role "$node_info")
 
             local status_json
             if [ $health_status -ne 0 ]; then

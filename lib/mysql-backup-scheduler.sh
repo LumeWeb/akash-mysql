@@ -99,7 +99,7 @@ monitor_backup_status() {
             local status
             status=$(jq -r '.last_backup.status' < "${BACKUP_CONFIG_DIR}/status/backup_status.json")
             local type
-            type=$(get_role_from_json "$(cat "${BACKUP_CONFIG_DIR}/status/backup_status.json")")
+            type=$(get_node_role "$(cat "${BACKUP_CONFIG_DIR}/status/backup_status.json")")
             local timestamp
             timestamp=$(jq -r '.last_backup.timestamp' < "${BACKUP_CONFIG_DIR}/status/backup_status.json")
             
