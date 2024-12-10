@@ -78,6 +78,9 @@ register_node() {
     fi
     log_info "Got valid lease ID (hex): $LEASE_ID"
 
+    # Export lease ID for other processes
+    export ETCD_LEASE_ID="$LEASE_ID"
+
     # Get MySQL status values with fallbacks
     local connections=$(mysqladmin status 2>/dev/null | awk '{print $4}')
     local uptime=$(mysqladmin status 2>/dev/null | awk '{print $2}')
@@ -105,18 +108,28 @@ register_node() {
             }
         }')
 
-    etcdctl put "$(get_node_path $NODE_ID)" "$status_json" --lease="$LEASE_ID" >/dev/null
+    # Create initial node registration with lease
+    if ! etcdctl put "$(get_node_path $NODE_ID)" "$status_json" --lease="$LEASE_ID" >/dev/null; then
+        log_error "Failed to register node in etcd"
+        return 1
+    fi
+    log_info "Initial node registration complete"
 
     # Start lease keepalive in background - this handles all lease monitoring
     LEASE_KEEPALIVE_PID=$(start_lease_keepalive "$LEASE_ID")
+    if [ -z "$LEASE_KEEPALIVE_PID" ]; then
+        log_error "Failed to start lease keepalive"
+        return 1
+    fi
+    log_info "Started lease keepalive with PID: $LEASE_KEEPALIVE_PID"
     
-    log_info "About to start health status updater background process"
-    log_info "Current LEASE_ID: $LEASE_ID"
-    log_info "Current NODE_ID: $NODE_ID"
-    log_info "Current CURRENT_ROLE: $CURRENT_ROLE"
-
-    # Actually start the health updater
-    start_health_updater
+    # Start health updater with current lease ID
+    log_info "Starting health status updater"
+    if ! start_health_updater; then
+        log_error "Failed to start health updater"
+        return 1
+    fi
+    log_info "Started health updater successfully"
 
     return 0
 }
