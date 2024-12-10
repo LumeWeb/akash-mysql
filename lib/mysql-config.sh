@@ -9,14 +9,13 @@ source "${LIB_PATH}/core/constants.sh"
 
 # Check MySQL configuration
 _check_config() {
-  echo "Checking MySQL configuration"
+  log_info "Checking MySQL configuration"
     if ! errors="$(mysqld "$@" --verbose --help 2>&1 >/dev/null)"; then
-      echo "MySQL configuration check failed: ${errors}"
         log_error "MySQL configuration check failed: ${errors}"
         return 1
     fi
 
-    echo "MySQL configuration check passed"
+    log_info "MySQL configuration check passed"
     return 0
 }
 
