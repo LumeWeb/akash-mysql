@@ -331,13 +331,12 @@ log_bin = ${server_id}-bin
 log_bin_index = ${server_id}-bin.index
 max_binlog_size = 1G
 binlog_cache_size = 4M
-binlog_format = ROW
 
 # Relay log settings
 relay_log = ${server_id}-relay-bin
 relay_log_index = ${server_id}-relay-bin.index
-master_info_repository = TABLE
-relay_log_info_repository = TABLE
+source_info_repository = TABLE              # Replaces master_info_repository
+relay_log_info_repository = FILE            # Changed to FILE as TABLE is deprecated
 relay_log_recovery = ON
 relay_log_purge = ON
 
@@ -349,7 +348,7 @@ skip_replica_start = ON
 # GTID settings
 gtid_mode = ON
 enforce_gtid_consistency = ON
-log_slave_updates = ON
+log_replica_updates = ON                    # Replaces log_slave_updates
 EOF
             ;;
 
