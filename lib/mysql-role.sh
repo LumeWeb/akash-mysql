@@ -25,9 +25,51 @@ save_role_state() {
     chmod 644 "$ROLE_STATE_FILE"
 }
 
+
+# Ensure role consistency between local state and etcd
+ensure_role_consistency() {
+    local current_role=$1
+    local node_id=$2
+    
+    # Get current state from etcd
+    local node_info
+    node_info=$(etcdctl get "$ETCD_NODES/$node_id" --print-value-only 2>/dev/null)
+    
+    if [ -n "$node_info" ]; then
+        local etcd_role
+        etcd_role=$(echo "$node_info" | jq -r '.role // empty')
+        
+        if [ "$etcd_role" != "$current_role" ]; then
+            log_warn "Role mismatch detected - etcd: $etcd_role, local: $current_role"
+            # Force update our status
+            update_node_status "$node_id" "online" "$current_role"
+            
+            # If we're supposed to be master but etcd disagrees, handle demotion
+            if [ "$current_role" = "master" ] && [ "$etcd_role" != "master" ]; then
+                log_info "Handling demotion due to role mismatch"
+                handle_demotion_to_slave
+                return 1
+            fi
+        fi
+    fi
+    return 0
+}
+
 # Switch node to source (master) role
 handle_promotion_to_master() {
     log_info "Handling promotion to source (primary) role"
+    
+    # Verify MySQL is actually running first
+    if ! mysqladmin ping -s >/dev/null 2>&1; then
+        log_error "Cannot promote - MySQL is not running"
+        return 1
+    fi
+
+    # Verify we can execute queries before proceeding
+    if ! mysql_retry_auth root "${MYSQL_ROOT_PASSWORD}" -e "SELECT 1" >/dev/null; then
+        log_error "Cannot promote - MySQL is not accepting queries"
+        return 1
+    fi
 
     # Stop any existing GTID monitor first
     stop_gtid_monitor
@@ -49,16 +91,26 @@ handle_promotion_to_master() {
         return 1
     fi
 
-    # Stop replication and reset configuration
-    mysql_retry_auth root "${MYSQL_ROOT_PASSWORD}" -e "
-        STOP REPLICA;
-        RESET REPLICA ALL;
-        SET GLOBAL read_only = OFF;
-        SET GLOBAL super_read_only = OFF;"
+    # Configure as master with retries
+    local max_attempts=3
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        if mysql_retry_auth root "${MYSQL_ROOT_PASSWORD}" -e "
+            STOP REPLICA;
+            RESET REPLICA ALL;
+            SET GLOBAL read_only = OFF;
+            SET GLOBAL super_read_only = OFF;"; then
+            break
+        fi
+        log_warn "Failed to configure master settings (attempt $attempt/$max_attempts)"
+        sleep 5
+        attempt=$((attempt + 1))
+    done
 
-    if [ $? -ne 0 ]; then
-        log_error "Failed to configure node as source"
-        CURRENT_ROLE="slave"  # Reset role on failure
+    if [ $attempt -gt $max_attempts ]; then
+        log_error "Failed to configure node as master after $max_attempts attempts"
+        CURRENT_ROLE="slave"
         save_role_state "slave"
         return 1
     fi
@@ -81,8 +133,28 @@ handle_promotion_to_master() {
         log_info "Backup services not started - backups disabled"
     fi
 
-    # Update our status in etcd
-    update_node_status "$NODE_ID" "online" "master"
+    # Update our status in etcd with verification
+    local status_update_attempts=3
+    attempt=1
+    
+    while [ $attempt -le $status_update_attempts ]; do
+        if update_node_status "$NODE_ID" "online" "master"; then
+            # Verify our update took effect
+            local current_status
+            if current_status=$(etcdctl get "$ETCD_NODES/$NODE_ID" --print-value-only 2>/dev/null); then
+                if echo "$current_status" | jq -e '.role == "master"' >/dev/null; then
+                    log_info "Successfully verified master status in etcd"
+                    return 0
+                fi
+            fi
+        fi
+        log_warn "Failed to verify master status update (attempt $attempt/$status_update_attempts)"
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+
+    log_error "Failed to verify master status update in etcd"
+    return 1
 }
 
 # Switch node to replica (slave) role
@@ -355,6 +427,13 @@ monitor_gtid() {
 # Watch for role changes
 watch_role_changes() {
     while true; do
+        # Verify MySQL is actually running
+        if ! mysqladmin ping -s >/dev/null 2>&1; then
+            log_error "MySQL is not responding to ping"
+            sleep 5
+            continue
+        fi
+
         NODE_DATA=$(etcdctl get "$ETCD_NODES/$NODE_ID" --print-value-only 2>/dev/null)
         if [ -z "$NODE_DATA" ]; then
             log_info "Waiting for node registration..."
@@ -365,12 +444,19 @@ watch_role_changes() {
         # Get current master node ID from etcd
         MASTER_NODE=$(etcdctl get "$ETCD_MASTER_KEY" --print-value-only 2>/dev/null)
 
-        # If we're the designated master (direct node ID comparison)
+        # If we're the designated master
         if [ "$MASTER_NODE" = "$NODE_ID" ]; then
             if [ "$CURRENT_ROLE" != "master" ]; then
                 log_info "ProxySQL designated us as master - handling promotion"
-                handle_promotion_to_master
+                if ! handle_promotion_to_master; then
+                    log_error "Failed to handle promotion to master"
+                    sleep 5
+                    continue
+                fi
             fi
+            
+            # Verify our master status is consistent
+            ensure_role_consistency "master" "$NODE_ID"
         else
             # If we're not the master, ensure we're a slave
             if [ "$CURRENT_ROLE" != "slave" ]; then
@@ -380,6 +466,9 @@ watch_role_changes() {
                 log_info "Slave needs replication configuration"
                 handle_demotion_to_slave
             fi
+            
+            # Verify our slave status is consistent
+            ensure_role_consistency "slave" "$NODE_ID"
         fi
 
         sleep 5
