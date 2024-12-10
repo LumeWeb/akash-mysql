@@ -22,21 +22,28 @@ detect_mysql_state() {
         return 0
     fi
 
-    # Case 2: Check for valid installation
+    # Case 2: Check for corruption markers first
+    if [ -f "${DATA_DIR}/ib_logfile0" ] || [ -f "${DATA_DIR}/ib_logfile1" ]; then
+        if grep -q "corrupt\|Invalid\|error\|Cannot create redo log" "${LOG_DIR}/error.log" 2>/dev/null; then
+            log_warn "Found corruption markers in error log"
+            return 2
+        fi
+    fi
+
+    # Case 3: Check for valid installation
     if [ -d "${DATA_DIR}/mysql" ] && \
        [ -f "${DATA_DIR}/ibdata1" ] && \
        [ -f "${DATA_DIR}/auto.cnf" ]; then
-        # Additional corruption checks
-        if [ -f "${DATA_DIR}/ib_logfile0" ]; then
-            if grep -q "corrupt" "${LOG_DIR}/error.log" 2>/dev/null; then
-                log_warn "Found corruption markers in error log"
-                return 2
-            fi
-        fi
         
-        # Check for clean shutdown
+        # Additional corruption checks
         if [ -f "${DATA_DIR}/aria_log_control" ]; then
             log_warn "Found aria control file indicating unclean shutdown"
+            return 2
+        fi
+
+        # Try to read InnoDB header
+        if ! mysqld --validate-config >/dev/null 2>&1; then
+            log_warn "MySQL configuration validation failed"
             return 2
         fi
         
@@ -44,13 +51,13 @@ detect_mysql_state() {
         return 1
     fi
 
-    # Case 3: Partial/corrupt installation
+    # Case 4: Partial/corrupt installation
     if [ -f "${DATA_DIR}/ibdata1" ] || [ -d "${DATA_DIR}/mysql" ]; then
         log_warn "Partial or corrupt installation detected"
         return 2
     fi
 
-    # Case 4: Unknown state
+    # Case 5: Unknown state
     log_error "Unknown MySQL data directory state"
     return 3
 }
