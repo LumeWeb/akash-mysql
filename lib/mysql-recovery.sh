@@ -204,18 +204,17 @@ perform_recovery() {
     return 0
 }
 
+# Restore from backup with enhanced error handling
+restore_from_backup() {
+    # Get latest backup from S3
+    local latest_backup
+    latest_backup=$(list_latest_backup)
+
     if [ -n "$latest_backup" ]; then
         log_info "Found latest backup in S3: $latest_backup"
     else
         log_info "No backup found in S3"
         return 1
-    fi
-
-    # Stop MySQL if running
-    if pgrep mysqld >/dev/null; then
-        log_info "Stopping MySQL for recovery"
-        mysqladmin shutdown
-        sleep 5
     fi
 
     # Stop MySQL if running
