@@ -29,6 +29,14 @@ save_role_state() {
 handle_promotion_to_master() {
     log_info "Handling promotion to source (primary) role"
 
+    # Stop any existing GTID monitor first
+    if [ -n "$GTID_MONITOR_PID" ]; then
+        log_info "Stopping existing GTID monitor (PID: $GTID_MONITOR_PID)"
+        kill $GTID_MONITOR_PID 2>/dev/null || true
+        wait $GTID_MONITOR_PID 2>/dev/null || true
+        GTID_MONITOR_PID=""
+    fi
+
     # Set role first to prevent race conditions
     CURRENT_ROLE="master"
     save_role_state "master"
