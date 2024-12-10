@@ -546,13 +546,31 @@ get_node_role() {
 }
 
 # Get current node info
- get_node_info() {
-     local node=$1
-     etcdctl --insecure-transport --insecure-skip-tls-verify \
-         get "$ETCD_NODES/$node" -w json | \
-         jq -r '.kvs[0].value' | \
-         base64 -d
- }
+get_node_info() {
+    local node=$1
+    local etcd_response
+    
+    # Get raw response from etcd
+    etcd_response=$(etcdctl --insecure-transport --insecure-skip-tls-verify \
+        get "$ETCD_NODES/$node" -w json 2>/dev/null)
+    
+    # Check if etcd call succeeded
+    if [ $? -ne 0 ]; then
+        log_error "Failed to query etcd for node info"
+        return 1
+    fi
+    
+    # Check if key exists
+    if ! echo "$etcd_response" | jq -e '.kvs' >/dev/null 2>&1; then
+        echo ""
+        return 0
+    fi
+    
+    # Extract and decode value
+    echo "$etcd_response" | \
+        jq -r '.kvs[0].value' 2>/dev/null | \
+        base64 -d 2>/dev/null || echo ""
+}
 
  get_node_hostname() {
    local node=$1

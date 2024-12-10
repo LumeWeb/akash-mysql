@@ -69,8 +69,13 @@ register_node() {
     # Check and clean up stale entry
     local stale_entry
     stale_entry=$(get_node_info "$NODE_ID")
-    if [ -n "$stale_entry" ]; then
-        log_warn "Found stale entry for node $NODE_ID - cleaning up"
+    if [ -n "$stale_entry" ] && [ "$stale_entry" != "null" ]; then
+        # Validate JSON structure
+        if ! echo "$stale_entry" | jq empty 2>/dev/null; then
+            log_error "Invalid JSON in stale entry for node $NODE_ID"
+            return 1
+        fi
+        log_warn "Found valid stale entry for node $NODE_ID - cleaning up"
         if ! etcdctl del "$ETCD_NODES/$NODE_ID" >/dev/null; then
             log_error "Failed to clean up stale node entry"
             return 1
