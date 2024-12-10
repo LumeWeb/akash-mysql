@@ -215,10 +215,18 @@ check_mysql_health() {
         local attempt=1
         
         while [ $attempt -le $ping_retries ]; do
-            if mysql_retry_auth root "${MYSQL_ROOT_PASSWORD}" mysqladmin ping -h localhost --connect-timeout=5 --silent >/dev/null 2>&1; then
+            # Try direct socket ping first
+            if mysqladmin --socket="${MYSQL_SOCKET}" -u root -p"${MYSQL_ROOT_PASSWORD}" ping --silent >/dev/null 2>&1; then
                 ping_success=1
                 break
             fi
+            
+            # Fallback to TCP ping if socket fails
+            if mysqladmin -h localhost -P "${MYSQL_PORT}" -u root -p"${MYSQL_ROOT_PASSWORD}" ping --silent >/dev/null 2>&1; then
+                ping_success=1
+                break
+            fi
+            
             log_warn "MySQL ping attempt $attempt/$ping_retries failed, waiting ${ping_wait}s before retry"
             sleep $ping_wait
             attempt=$((attempt + 1))
