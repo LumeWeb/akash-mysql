@@ -11,12 +11,16 @@ source "${LIB_PATH}/core/constants.sh"
 check_mysql_initialized() {
     local data_dir="${1:-${DATA_DIR}}"
     
-    # Check for all required files in a single consistent check
-    if [ ! -d "${data_dir}/mysql" ] || \
-       [ ! -f "${data_dir}/ibdata1" ] || \
+    # First check if mysql dir exists and is non-empty
+    if [ ! -d "${data_dir}/mysql" ] || [ ! "$(ls -A ${data_dir}/mysql 2>/dev/null)" ]; then
+        return 1  # Not initialized or empty
+    fi
+    
+    # Then check for required files
+    if [ ! -f "${data_dir}/ibdata1" ] || \
        [ ! -f "${data_dir}/auto.cnf" ] || \
        [ ! -f "${data_dir}/mysql/user.ibd" ]; then
-        return 1  # Not initialized
+        return 1  # Missing required files
     fi
     
     return 0  # Initialized
