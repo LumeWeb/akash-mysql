@@ -32,9 +32,21 @@ init_mysql() {
     if ! check_mysql_initialized "$DATA_DIR"; then
         log_info "MySQL data directory is empty, initializing..."
         
+        # Ensure directories exist and are writable
+        for dir in "$DATA_DIR" "$RUN_DIR" "$LOG_DIR"; do
+            if ! mkdir -p "$dir" 2>/dev/null; then
+                log_error "Failed to create directory: $dir"
+                return 1
+            fi
+            if [ ! -w "$dir" ]; then
+                log_error "Directory not writable: $dir"
+                return 1
+            fi
+        done
+
         # Create initialization lock
         touch "${RUN_DIR}/init.lock"
-        
+            
         # Gracefully stop any running MySQL instances
         if [ -f /var/run/mysqld/mysqld.pid ]; then
             mysqladmin shutdown 2>/dev/null || true
@@ -49,18 +61,32 @@ init_mysql() {
         rm -f /var/run/mysqld/mysqld.pid
         rm -f /var/run/mysqld/mysqld.sock*
         
-        # Verify directory permissions before initialization
-        if [ ! -w "$DATA_DIR" ]; then
-            log_error "Data directory $DATA_DIR is not writable"
+        # Ensure directory permissions
+        if ! mkdir -p "$DATA_DIR" 2>/dev/null; then
+            log_error "Failed to create data directory $DATA_DIR"
             return 1
         fi
-        
-        # Initialize MySQL with explicit paths
-        mysqld --initialize-insecure --user=mysql \
+
+        # Clean directory but preserve protected paths
+        if ! safe_clear_directory "$DATA_DIR"; then
+            log_error "Failed to clear data directory"
+            return 1
+        fi
+
+        # Initialize MySQL with explicit paths and error logging
+        if ! mysqld --initialize-insecure --user=mysql \
             --datadir="$DATA_DIR" \
             --basedir=/usr \
             --secure-file-priv=/var/lib/mysql-files \
-            --pid-file=/var/run/mysqld/mysqld.pid
+            --pid-file=/var/run/mysqld/mysqld.pid \
+            --log-error=/var/log/mysql/init-error.log; then
+            log_error "MySQL initialization failed"
+            if [ -f "/var/log/mysql/init-error.log" ]; then
+                log_error "Initialization error log:"
+                cat "/var/log/mysql/init-error.log"
+            fi
+            return 1
+        fi
             
         # Wait for initialization to complete
         sync
