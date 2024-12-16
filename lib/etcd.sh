@@ -140,3 +140,6 @@ get_node_path() {
     local node_id=$1
     echo "${ETCD_NODES}/${node_id}"
 }
+
+# ETCD state files
+declare -gr ETCD_STATE_FILE="${STATE_DIR}/etcd_state"

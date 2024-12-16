@@ -29,9 +29,9 @@ RUN percona-release enable pxb-80 && \
     && chmod +x "$SUPERCRONIC" \
     && mv "$SUPERCRONIC" "/usr/local/bin/${SUPERCRONIC}" \
     && ln -s "/usr/local/bin/${SUPERCRONIC}" /usr/local/bin/supercronic && \
-    mkdir -p /var/lib/mysql-backup && \
-    chown mysql:mysql /var/lib/mysql-backup && \
-    chmod 750 /var/lib/mysql-backup && \
+    mkdir -p /var/lib/mysql/state/backup/config && \
+    chown -R mysql:mysql /var/lib/mysql && \
+    chmod 750 /var/lib/mysql/state && \
     yum clean all && \
     rm -rf /var/cache/yum && \
     mkdir -p /var/log/{mysql,mysql-manager} /etc/mysql /var/run/mysqld /etc/mysql/conf.d && \

@@ -6,6 +6,7 @@ source ./paths.sh
 source "${LIB_PATH}/core/logging.sh"
 source "${LIB_PATH}/core/constants.sh"
 source "${LIB_PATH}/core/cron.sh"
+source "${LIB_PATH}/core/setup.sh"
 
 # If we're running as root, set up permissions and re-execute as mysql
 if [ "$(id -u)" = "0" ]; then
@@ -59,6 +60,9 @@ EOF
     chmod 644 /etc/my.cnf
 
     touch /var/run/crond.pid && chown mysql:mysql /var/run/crond.pid
+
+    # Initialize all state directories
+    init_state_directories
 
     # Re-execute script as mysql user
     exec su mysql -s /bin/bash -c "$0 $*"

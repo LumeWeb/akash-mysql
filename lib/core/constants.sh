@@ -15,10 +15,12 @@ declare -gr CONFIG_DIR="/etc/my.cnf.d"
 declare -gr LOG_DIR="/var/log/mysql"
 declare -gr DATA_DIR="/var/lib/mysql"
 declare -gr RUN_DIR="/var/run/mysqld"
+declare -gr STATE_DIR="${DATA_DIR}/state"
+declare -gr BACKUP_STATE_DIR="${STATE_DIR}/backup"
 declare -gr MYSQL_SOCKET="${MYSQL_SOCKET_PATH:-${RUN_DIR}/mysqld.sock}"
 
 # Backup settings
-declare -gr BACKUP_CONFIG_DIR="${BACKUP_CONFIG_DIR:-/etc/mysql/backup}"
+declare -gr BACKUP_CONFIG_DIR="${STATE_DIR}/backup/config"
 declare -gr BACKUP_KEY_DIR="${BACKUP_CONFIG_DIR}/keys"
 declare -gr BACKUP_RETENTION_DAYS=7
 declare -gr BACKUP_FULL_INTERVAL=86400    # 24 hours in seconds
@@ -57,3 +59,10 @@ declare -gr MYSQL_SSL_DIR="/etc/mysql/ssl"
 declare -gr MYSQL_SSL_CA="${MYSQL_SSL_DIR}/ca-cert.pem"
 declare -gr MYSQL_SSL_CERT="${MYSQL_SSL_DIR}/server-cert.pem"
 declare -gr MYSQL_SSL_KEY="${MYSQL_SSL_DIR}/server-key.pem"
+
+# State directory structure
+declare -gr LOCKS_DIR="${STATE_DIR}/locks"
+declare -gr CONFIG_STATE_DIR="${STATE_DIR}/config"
+declare -gr CRON_STATE_DIR="${STATE_DIR}/cron"
+declare -gr ETCD_STATE_DIR="${STATE_DIR}/etcd"
+declare -gr CRON_TAB_FILE="${CRON_STATE_DIR}/mysql-backup"

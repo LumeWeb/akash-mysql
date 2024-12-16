@@ -8,6 +8,7 @@ source "${LIB_PATH}/core/logging.sh"
 source "${LIB_PATH}/mysql-common.sh"
 
 declare -g HEALTH_UPDATE_PID=""
+declare -gr HEALTH_STATE_FILE="${STATE_DIR}/health_status"
 
 start_health_updater() {
     log_info "Starting health status updater"

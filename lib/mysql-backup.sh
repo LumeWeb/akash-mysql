@@ -382,3 +382,10 @@ cleanup_old_backups() {
         fi
     done
 }
+
+# Backup state tracking
+declare -gr BACKUP_STATE_FILE="${STATE_DIR}/backup_state"
+declare -gr BACKUP_LOCK_FILE="${LOCKS_DIR}/backup.lock"
+
+# Save backup status
+echo "$status" > "${STATE_DIR}/backup/status"

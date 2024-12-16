@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# Add STATE_DIR to protected paths
+declare -g PROTECTED_PATHS=(
+    "backup-keys"
+    "mysql-files"
+    "state"
+)
+
 # Cleanup function to stop all background processes
 cleanup() {
   local err=$?
@@ -11,9 +18,9 @@ cleanup() {
   fi
 
   # Stop log monitoring
-  if [ -f "/var/run/mysqld/error_monitor.pid" ]; then
-    kill $(cat /var/run/mysqld/error_monitor.pid) 2>/dev/null || true
-    rm -f /var/run/mysqld/error_monitor.pid
+  if [ -f "${STATE_DIR}/monitor/error_monitor.pid" ]; then
+    kill $(cat "${STATE_DIR}/monitor/error_monitor.pid") 2>/dev/null || true
+    rm -f "${STATE_DIR}/monitor/error_monitor.pid"
   fi
 
   # First stop monitoring processes
@@ -45,7 +52,7 @@ cleanup() {
   fi
 
   # Finally stop MySQL
-  if [ -f "/var/run/mysqld/mysqld.pid" ]; then
+  if [ -f "${RUN_DIR}/mysqld.pid" ]; then
     mysqladmin shutdown 2>/dev/null || true
     # Wait for MySQL to fully shutdown
     sleep 5

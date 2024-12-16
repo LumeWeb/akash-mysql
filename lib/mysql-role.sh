@@ -4,7 +4,7 @@ source "${LIB_PATH}/core/cron.sh"
 
 # Track current role and state
 declare -g CURRENT_ROLE=""
-declare -g ROLE_STATE_FILE="/var/lib/mysql/last_role"
+declare -g ROLE_STATE_FILE="${STATE_DIR}/last_role"
 declare -g LAST_KNOWN_GTID=""
 declare -g GTID_MONITOR_PID=""
 declare -g REPLICATION_CONFIGURED=0
@@ -343,7 +343,7 @@ stop_gtid_monitor() {
 
 # Monitor GTID changes and update etcd
 monitor_gtid() {
-    local lock_file="/var/run/mysqld/gtid_monitor.lock"
+    local lock_file="${LOCKS_DIR}/gtid_monitor.lock"
     
     # Stop any existing monitor
     if ! stop_gtid_monitor; then
@@ -416,7 +416,7 @@ monitor_gtid() {
                 etcdctl put "$ETCD_NODES/$NODE_ID" "$node_status" >/dev/null
             fi
             sleep 5
-        done 200>/var/run/mysqld/gtid_monitor.lock
+        done 200>"${LOCKS_DIR}/gtid_monitor.lock"
     ) &
     GTID_MONITOR_PID=$!
 }

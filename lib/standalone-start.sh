@@ -17,6 +17,16 @@ log_info "Starting MySQL in standalone mode..."
 CURRENT_ROLE="standalone"
 ROLE="standalone"
 
+# Ensure state directories exist
+ensure_state_dirs() {
+    mkdir -p "${STATE_DIR}" "${BACKUP_STATE_DIR}" "${BACKUP_CONFIG_DIR}"
+    chown -R mysql:mysql "${STATE_DIR}"
+    chmod 750 "${STATE_DIR}"
+}
+
+# Call during startup
+ensure_state_dirs
+
 # Check if recovery is needed
 if detect_mysql_state; then
     state_code=$?

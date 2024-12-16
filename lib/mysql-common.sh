@@ -18,6 +18,9 @@ declare -g PROTECTED_PATHS=(
     "mysql-files"
 )
 
+# Lock file paths
+declare -gr MYSQL_LOCK_DIR="${STATE_DIR}/locks"
+
 # Safely clear directory contents while preserving protected paths
 safe_clear_directory() {
     local dir="$1"
@@ -132,9 +135,9 @@ wait_for_mysql() {
 
     while [ $counter -lt $timeout ]; do
         # Check socket file first
-        if [ ! -S "$MYSQL_SOCKET" ]; then
+        if [ ! -S "${MYSQL_SOCKET}" ]; then
             if [ $((counter % 5)) -eq 0 ]; then
-                log_info "Waiting for MySQL socket file at $MYSQL_SOCKET"
+                log_info "Waiting for MySQL socket file at ${MYSQL_SOCKET}"
             fi
             sleep 1
             counter=$((counter + 1))
@@ -146,7 +149,7 @@ wait_for_mysql() {
             log_info "MySQL responding to ping"
 
             # During initial startup, try no-password first
-            if mysql -u root --connect-timeout=5 -e "SELECT 1" >/dev/null 2>&1; then
+            if mysql --socket="${MYSQL_SOCKET}" -u root --connect-timeout=5 -e "SELECT 1" >/dev/null 2>&1; then
                 log_info "MySQL accepting SQL connections (initial no-password state)"
                 connection_success=1
                 break
@@ -170,9 +173,9 @@ wait_for_mysql() {
 
     if [ $connection_success -eq 0 ]; then
         log_error "MySQL failed to become ready within ${timeout} seconds"
-        if [ -f "$LOG_DIR/error.log" ]; then
+        if [ -f "${LOG_DIR}/error.log" ]; then
             log_error "Last 10 lines of error log:"
-            tail -n 10 "$LOG_DIR/error.log" >&2
+            tail -n 10 "${LOG_DIR}/error.log" >&2
         fi
         return 1
     fi

@@ -43,10 +43,10 @@ init_mysql() {
         done
 
         # Create initialization lock
-        touch "${RUN_DIR}/init.lock"
+        touch "${LOCKS_DIR}/init.lock"
             
         # Gracefully stop any running MySQL instances
-        if [ -f /var/run/mysqld/mysqld.pid ]; then
+        if [ -f "${RUN_DIR}/mysqld.pid" ]; then
             mysqladmin shutdown 2>/dev/null || true
             sleep 5
         fi
@@ -56,8 +56,8 @@ init_mysql() {
         sleep 2
         
         # Remove socket files
-        rm -f /var/run/mysqld/mysqld.pid
-        rm -f /var/run/mysqld/mysqld.sock*
+        rm -f "${RUN_DIR}/mysqld.pid"
+        rm -f "${MYSQL_SOCKET}"*
         
         # Ensure directory permissions
         if ! mkdir -p "$DATA_DIR" 2>/dev/null; then
@@ -75,18 +75,18 @@ init_mysql() {
         if ! mysqld --initialize-insecure --user=mysql \
             --datadir="$DATA_DIR" \
             --basedir=/usr \
-            --secure-file-priv=/var/lib/mysql-files \
-            --pid-file=/var/run/mysqld/mysqld.pid \
-            --log-error=/var/log/mysql/init-error.log \
+            --secure-file-priv="/var/lib/mysql-files" \
+            --pid-file="${RUN_DIR}/mysqld.pid" \
+            --log-error="${LOG_DIR}/init-error.log" \
             --innodb-buffer-pool-size=32M \
             --innodb-log-file-size=48M \
             --max-connections=10 \
             --performance-schema=OFF \
             --skip-log-bin; then
             log_error "MySQL initialization failed"
-            if [ -f "/var/log/mysql/init-error.log" ]; then
+            if [ -f "${LOG_DIR}/init-error.log" ]; then
                 log_error "Initialization error log:"
-                cat "/var/log/mysql/init-error.log"
+                cat "${LOG_DIR}/init-error.log"
             fi
             return 1
         fi
@@ -106,15 +106,15 @@ init_mysql() {
             fi
             
             # Remove any stale files
-            rm -f /var/run/mysqld/mysqld.sock* 
-            rm -f /var/run/mysqld/mysqld.pid
+            rm -f "${MYSQL_SOCKET}"* 
+            rm -f "${RUN_DIR}/mysqld.pid"
             
             # Start with error logging and explicit paths
             mysqld --skip-grant-tables --skip-networking \
                   --datadir="$DATA_DIR" \
-                  --socket=/var/run/mysqld/mysqld.sock \
-                  --pid-file=/var/run/mysqld/mysqld.pid \
-                  --log-error=/var/log/mysql/init-error.log \
+                  --socket="${MYSQL_SOCKET}" \
+                  --pid-file="${RUN_DIR}/mysqld.pid" \
+                  --log-error="${LOG_DIR}/init-error.log" \
                   --port="${MYSQL_PORT}" \
                   --user=mysql &
             TEMP_MYSQL_PID=$!
@@ -123,9 +123,9 @@ init_mysql() {
             sleep 5
             if ! kill -0 $TEMP_MYSQL_PID 2>/dev/null; then
                 log_error "Temporary MySQL process died immediately"
-                if [ -f "/var/log/mysql/init-error.log" ]; then
+                if [ -f "${LOG_DIR}/init-error.log" ]; then
                     log_error "Error log contents:"
-                    cat "/var/log/mysql/init-error.log"
+                    cat "${LOG_DIR}/init-error.log"
                 fi
                 return 1
             fi
@@ -134,8 +134,8 @@ init_mysql() {
             local max_attempts=30
             local attempt=1
             while [ $attempt -le $max_attempts ]; do
-                if [ -S "/var/run/mysqld/mysqld.sock" ]; then
-                    if mysql -u root --socket=/var/run/mysqld/mysqld.sock -e "SELECT 1" >/dev/null 2>&1; then
+                if [ -S "${MYSQL_SOCKET}" ]; then
+                    if mysql -u root --socket="${MYSQL_SOCKET}" -e "SELECT 1" >/dev/null 2>&1; then
                         log_info "Temporary MySQL instance is ready"
                         break
                     fi
@@ -143,9 +143,9 @@ init_mysql() {
                 
                 if [ $((attempt % 5)) -eq 0 ]; then
                     log_info "Still waiting for temporary MySQL instance (attempt $attempt/$max_attempts)"
-                    if [ -f "/var/log/mysql/init-error.log" ]; then
+                    if [ -f "${LOG_DIR}/init-error.log" ]; then
                         log_info "Last 5 lines of error log:"
-                        tail -n 5 "/var/log/mysql/init-error.log"
+                        tail -n 5 "${LOG_DIR}/init-error.log"
                     fi
                 fi
                 
@@ -155,9 +155,9 @@ init_mysql() {
             
             if [ $attempt -gt $max_attempts ]; then
                 log_error "Temporary MySQL instance failed to start"
-                if [ -f "/var/log/mysql/init-error.log" ]; then
+                if [ -f "${LOG_DIR}/init-error.log" ]; then
                     log_error "Error log contents:"
-                    cat "/var/log/mysql/init-error.log"
+                    cat "${LOG_DIR}/init-error.log"
                 fi
                 return 1
             fi
@@ -186,13 +186,23 @@ EOF
         fi
         
         log_info "MySQL initialization completed"
-        rm -f "${RUN_DIR}/init.lock"
+        rm -f "${LOCKS_DIR}/init.lock"
         return 0
     else
         log_info "MySQL data directory already initialized"
         return 0
     fi
 }
+
+# Initialize state directory
+init_state_dir() {
+    mkdir -p "${STATE_DIR}"
+    chown mysql:mysql "${STATE_DIR}"
+    chmod 750 "${STATE_DIR}"
+}
+
+# Call during startup
+init_state_dir
 
 # Start MySQL with enhanced configuration and monitoring
 start_mysql() {
@@ -297,15 +307,15 @@ start_mysql() {
     fi
 
     # Ensure plugin directory is clean
-    rm -rf /var/lib/mysql/plugin/*
+    rm -rf "${DATA_DIR}/plugin"/*
     
     # Ensure error log directory exists
-    local ERROR_LOG="$LOG_DIR/error.log"
+    local ERROR_LOG="${LOG_DIR}/error.log"
     mkdir -p "$(dirname "$ERROR_LOG")" 2>/dev/null || true
     touch "$ERROR_LOG" 2>/dev/null || true
     
     # Start log monitoring in background
-    monitor_log "$ERROR_LOG" "/var/run/mysqld/error_monitor.pid"
+    monitor_log "$ERROR_LOG" "${STATE_DIR}/monitor/error_monitor.pid"
     
     # Kill any existing MySQL processes
     pkill mysqld || true
@@ -314,17 +324,17 @@ start_mysql() {
     sleep 2
     
     # Remove any stale files
-    rm -f /var/run/mysqld/mysqld.pid
-    rm -f /var/run/mysqld/mysqld.sock
+    rm -f "${RUN_DIR}/mysqld.pid"
+    rm -f "${MYSQL_SOCKET}"
     
     # Start MySQL
     mysqld \
         --user=mysql \
         --port="${MYSQL_PORT}" \
-        --log-error="$LOG_DIR/error.log" \
+        --log-error="${LOG_DIR}/error.log" \
         --skip-mysqlx \
-        --datadir=/var/lib/mysql \
-        --pid-file=/var/run/mysqld/mysqld.pid \
+        --datadir="${DATA_DIR}" \
+        --pid-file="${RUN_DIR}/mysqld.pid" \
         --socket="${MYSQL_SOCKET}" &
 
     MYSQL_PID=$!
@@ -339,9 +349,9 @@ start_mysql() {
     # Check if MySQL process is still running
     if ! kill -0 $MYSQL_PID 2>/dev/null; then
         log_error "MySQL process died during startup"
-        if [ -f "$LOG_DIR/error.log" ]; then
+        if [ -f "${LOG_DIR}/error.log" ]; then
             log_error "Last 10 lines of error log:"
-            tail -n 10 "$LOG_DIR/error.log" >&2
+            tail -n 10 "${LOG_DIR}/error.log" >&2
         fi
         return 1
     fi
@@ -357,15 +367,9 @@ start_mysql() {
     # Root password is now set during initialization
 
     # Process initialization files after MySQL is running
-    
     # Initialize backup environment after init files are processed
     if [ -d "/docker-entrypoint-initdb.d" ]; then
         log_info "Processing initialization files..."
-        local mysql_opts=()
-        
-        # Try different authentication methods
-        local auth_attempts=0
-        local auth_success=0
         
         # Filter initialization files based on cluster mode
         local init_files=()
@@ -382,6 +386,10 @@ start_mysql() {
             init_files+=("$f")
         done
         
+        # Try different authentication methods
+        local auth_attempts=0
+        local auth_success=0
+        
         while [ $auth_attempts -lt 3 ] && [ $auth_success -eq 0 ]; do
             if [ $auth_attempts -eq 0 ]; then
                 # First try: with password
@@ -395,7 +403,7 @@ start_mysql() {
                 mysql_opts=( -uroot -p"${MYSQL_ROOT_PASSWORD}" )
             fi
             
-             if mysqladmin -u root -p"${MYSQL_ROOT_PASSWORD}" ping -s >/dev/null 2>&1; then
+            if mysqladmin --socket="${MYSQL_SOCKET}" -u root -p"${MYSQL_ROOT_PASSWORD}" ping --silent >/dev/null 2>&1; then
                 auth_success=1
                 break
             fi

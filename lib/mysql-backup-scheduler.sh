@@ -24,10 +24,8 @@ start_backup_scheduler() {
 
 # Setup cron jobs for standalone mode
 setup_backup_cron() {
-    local cron_file="/etc/cron.d/mysql-backup"
-    
     # Create cron entries
-    cat > "$cron_file" << EOF
+    cat > "${CRON_TAB_FILE}" << EOF
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
@@ -42,7 +40,7 @@ ${BACKUP_SCHEDULE_INCREMENTAL:-0 */6 * * *} root /usr/local/bin/mysql-backup-inc
 EOF
 
     # Set proper permissions
-    chmod 644 "$cron_file"
+    chmod 644 "${CRON_TAB_FILE}"
     
     # Only start cron if we're standalone or master
     if [ "$CLUSTER_MODE" != "true" ] || [ "$CURRENT_ROLE" = "master" ]; then
@@ -85,7 +83,7 @@ update_backup_status() {
         etcdctl put "$ETCD_NODES/$NODE_ID/backup" "$status_json" --lease=$LEASE_ID >/dev/null
     else
         # Update local status file in standalone mode
-        local status_dir="${BACKUP_CONFIG_DIR}/status"
+        local status_dir="${STATE_DIR}/backup/status"
         mkdir -p "$status_dir"
         echo "$status_json" > "$status_dir/backup_status.json"
         chmod 640 "$status_dir/backup_status.json"
@@ -95,16 +93,23 @@ update_backup_status() {
 # Monitor backup status and log results
 monitor_backup_status() {
     while true; do
-        if [ -f "${BACKUP_CONFIG_DIR}/status/backup_status.json" ]; then
+        if [ -f "${STATE_DIR}/backup/status/backup_status.json" ]; then
             local status
-            status=$(jq -r '.last_backup.status' < "${BACKUP_CONFIG_DIR}/status/backup_status.json")
+            status=$(jq -r '.last_backup.status' < "${STATE_DIR}/backup/status/backup_status.json")
             local type
-            type=$(get_node_role "$(cat "${BACKUP_CONFIG_DIR}/status/backup_status.json")")
+            type=$(get_node_role "$(cat "${STATE_DIR}/backup/status/backup_status.json")")
             local timestamp
-            timestamp=$(jq -r '.last_backup.timestamp' < "${BACKUP_CONFIG_DIR}/status/backup_status.json")
+            timestamp=$(jq -r '.last_backup.timestamp' < "${STATE_DIR}/backup/status/backup_status.json")
             
             log_info "Backup Status - Type: $type, Status: $status, Time: $timestamp"
         fi
         sleep 300  # Check every 5 minutes
     done
+}
+
+# Initialize backup directories
+init_backup_dirs() {
+    mkdir -p "${BACKUP_STATE_DIR}" "${BACKUP_CONFIG_DIR}/keys"
+    chmod 750 "${BACKUP_STATE_DIR}" "${BACKUP_CONFIG_DIR}"
+    chmod 700 "${BACKUP_CONFIG_DIR}/keys"
 }

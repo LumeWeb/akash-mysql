@@ -18,7 +18,7 @@ start_cron() {
         log_info "Starting supercronic daemon"
         
         # Run supercronic with appropriate flags in background
-        supercronic --json --split-logs --overlapping /etc/cron.d/mysql-backup &
+        supercronic --json --split-logs --overlapping "${CRON_TAB_FILE}" &
         CROND_PID=$!
         
         # Verify supercronic is running
@@ -72,3 +72,6 @@ is_cron_running() {
     fi
     return 1
 }
+
+# Cron state tracking
+declare -gr CRON_STATE_FILE="${STATE_DIR}/cron_state"
