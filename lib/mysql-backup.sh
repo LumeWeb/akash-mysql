@@ -389,3 +389,6 @@ declare -gr BACKUP_LOCK_FILE="${LOCKS_DIR}/backup.lock"
 
 # Save backup status
 echo "$status" > "${STATE_DIR}/backup/status"
+
+# Monitor backup progress
+monitor_log "${BACKUP_LOG}" "${BACKUP_MONITOR_PID}"

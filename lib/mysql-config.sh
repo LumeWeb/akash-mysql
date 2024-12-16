@@ -160,7 +160,7 @@ cat > "$config_file" << EOF
 [mysqld]
 # Container/Pod Settings
 skip-name-resolve
-secure-file-priv = /var/lib/mysql-files
+secure-file-priv = ${MYSQL_FILES_DIR}
 host_cache_size = 0
 
 # Authentication settings
@@ -207,7 +207,7 @@ thread_cache_size = $((cpu_cores * 16))     # Reduced from 32
 
 # Logging Settings
 slow_query_log = 1
-slow_query_log_file = "$LOG_DIR/slow-query.log"
+slow_query_log_file = "${SLOW_QUERY_LOG}"
 long_query_time = 2
 log_queries_not_using_indexes = 0           # Disabled by default
 binlog_expire_logs_seconds = 604800         # 7 days in seconds (replaces expire-logs-days)
@@ -487,49 +487,130 @@ verify_gtid_configuration() {
 generate_ssl_certificates() {
     log_info "Checking SSL certificates..."
     
-    # Create SSL directory if it doesn't exist
-    mkdir -p "${MYSQL_SSL_DIR}"
-    
     if [ ! -f "${MYSQL_SSL_KEY}" ]; then
         log_info "Generating new SSL certificates..."
         
+        # Validate HOST is set
+        if [ -z "${HOST}" ]; then
+            log_error "HOST variable is not set"
+            return 1
+        fi
+        log_info "Using hostname: ${HOST}"
+        
+        # Create temporary directory for generation
+        TMP_SSL_DIR=$(mktemp -d)
+        
         # Generate CA key and certificate
-        openssl genrsa 2048 > "${MYSQL_SSL_DIR}/ca-key.pem"
-        openssl req -new -x509 -nodes -days 3650 \
-            -key "${MYSQL_SSL_DIR}/ca-key.pem" \
-            -out "${MYSQL_SSL_DIR}/ca-cert.pem" \
-            -subj "/CN=MySQL_Server"
+        if ! openssl genrsa -out "${TMP_SSL_DIR}/ca-key.pem" 2048; then
+            log_error "Failed to generate CA key"
+            rm -rf "${TMP_SSL_DIR}"
+            return 1
+        fi
+
+        if ! openssl req -new -x509 -nodes -days 3650 \
+            -key "${TMP_SSL_DIR}/ca-key.pem" \
+            -out "${TMP_SSL_DIR}/ca-cert.pem" \
+            -subj "/CN=MySQL_CA" -sha256; then
+            log_error "Failed to generate CA certificate"
+            rm -rf "${TMP_SSL_DIR}"
+            return 1
+        fi
 
         # Generate server key and certificate
-        openssl req -newkey rsa:2048 -nodes -days 3650 \
-            -keyout "${MYSQL_SSL_DIR}/server-key.pem" \
-            -out "${MYSQL_SSL_DIR}/server-req.pem" \
-            -subj "/CN=${HOST}"
-        openssl rsa -in "${MYSQL_SSL_DIR}/server-key.pem" -out "${MYSQL_SSL_DIR}/server-key.pem"
-        openssl x509 -req -in "${MYSQL_SSL_DIR}/server-req.pem" -days 3650 \
-            -CA "${MYSQL_SSL_DIR}/ca-cert.pem" \
-            -CAkey "${MYSQL_SSL_DIR}/ca-key.pem" \
-            -set_serial 01 -out "${MYSQL_SSL_DIR}/server-cert.pem"
+        if ! openssl genrsa -out "${TMP_SSL_DIR}/server-key.pem" 2048; then
+            log_error "Failed to generate server key"
+            rm -rf "${TMP_SSL_DIR}"
+            return 1
+        fi
+
+        # Create server request with full subject
+        SERVER_SUBJECT="/C=US/ST=State/L=City/O=MySQL/CN=${HOST}"
+        log_info "Using server certificate subject: ${SERVER_SUBJECT}"
+
+        if ! openssl req -new -key "${TMP_SSL_DIR}/server-key.pem" \
+            -out "${TMP_SSL_DIR}/server-req.pem" \
+            -subj "${SERVER_SUBJECT}" -sha256; then
+            log_error "Failed to generate server certificate request"
+            rm -rf "${TMP_SSL_DIR}"
+            return 1
+        fi
+
+        # Create extensions file for server cert
+        cat > "${TMP_SSL_DIR}/server-ext.cnf" << EOF
+[v3_ext]
+basicConstraints = critical,CA:FALSE
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth,clientAuth
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = ${HOST}
+EOF
+
+        if ! openssl x509 -req -in "${TMP_SSL_DIR}/server-req.pem" \
+            -days 3650 -CA "${TMP_SSL_DIR}/ca-cert.pem" \
+            -CAkey "${TMP_SSL_DIR}/ca-key.pem" -set_serial 01 \
+            -out "${TMP_SSL_DIR}/server-cert.pem" \
+            -extfile "${TMP_SSL_DIR}/server-ext.cnf" \
+            -extensions v3_ext; then
+            log_error "Failed to generate server certificate"
+            rm -rf "${TMP_SSL_DIR}"
+            return 1
+        fi
 
         # Generate client key and certificate
-        openssl req -newkey rsa:2048 -nodes -days 3650 \
-            -keyout "${MYSQL_SSL_DIR}/client-key.pem" \
-            -out "${MYSQL_SSL_DIR}/client-req.pem" \
-            -subj "/CN=MySQL_Client"
-        openssl rsa -in "${MYSQL_SSL_DIR}/client-key.pem" -out "${MYSQL_SSL_DIR}/client-key.pem"
-        openssl x509 -req -in "${MYSQL_SSL_DIR}/client-req.pem" -days 3650 \
-            -CA "${MYSQL_SSL_DIR}/ca-cert.pem" \
-            -CAkey "${MYSQL_SSL_DIR}/ca-key.pem" \
-            -set_serial 02 -out "${MYSQL_SSL_DIR}/client-cert.pem"
+        if ! openssl genrsa -out "${TMP_SSL_DIR}/client-key.pem" 2048; then
+            log_error "Failed to generate client key"
+            rm -rf "${TMP_SSL_DIR}"
+            return 1
+        fi
 
-        # Set proper permissions
-        chmod 400 "${MYSQL_SSL_DIR}"/*.pem
-        chown -R mysql:mysql "${MYSQL_SSL_DIR}"
+        if ! openssl req -new -key "${TMP_SSL_DIR}/client-key.pem" \
+            -out "${TMP_SSL_DIR}/client-req.pem" \
+            -subj "/CN=MySQL_Client" -sha256; then
+            log_error "Failed to generate client certificate request"
+            rm -rf "${TMP_SSL_DIR}"
+            return 1
+        fi
+
+        if ! openssl x509 -req -in "${TMP_SSL_DIR}/client-req.pem" \
+            -days 3650 -CA "${TMP_SSL_DIR}/ca-cert.pem" \
+            -CAkey "${TMP_SSL_DIR}/ca-key.pem" -set_serial 02 \
+            -out "${TMP_SSL_DIR}/client-cert.pem" -sha256; then
+            log_error "Failed to generate client certificate"
+            rm -rf "${TMP_SSL_DIR}"
+            return 1
+        fi
+
+        # Set proper permissions on the generated files
+        chmod 400 "${TMP_SSL_DIR}"/*.pem
+
+        # Move files to final location
+        if ! mv "${TMP_SSL_DIR}"/*.pem "${MYSQL_SSL_DIR}/"; then
+            log_error "Failed to move certificates to final location"
+            rm -rf "${TMP_SSL_DIR}"
+            return 1
+        fi
+        
+        # Clean up temporary directory
+        rm -rf "${TMP_SSL_DIR}"
         
         log_info "SSL certificates generated successfully"
     else
         log_info "Using existing SSL certificates"
     fi
+
+    # Verify all required files exist
+    for cert_file in "${MYSQL_SSL_CA}" "${MYSQL_SSL_CERT}" "${MYSQL_SSL_KEY}"; do
+        if [ ! -f "${cert_file}" ]; then
+            log_error "Required SSL certificate file missing: ${cert_file}"
+            return 1
+        fi
+    done
+
+    return 0
 }
 
 # Configure global MySQL client SSL settings
@@ -543,8 +624,7 @@ configure_mysql_client_ssl() {
 ssl-ca = ${MYSQL_SSL_CA}
 ssl-cert = ${MYSQL_SSL_CERT}
 ssl-key = ${MYSQL_SSL_KEY}
-ssl-mode = VERIFY_IDENTITY
-ssl-verify-server-cert = 0
+ssl-mode = VERIFY_CA
 EOF
 
     chmod 644 "$client_cnf"

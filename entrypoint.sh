@@ -10,13 +10,12 @@ source "${LIB_PATH}/core/setup.sh"
 
 # If we're running as root, set up permissions and re-execute as mysql
 if [ "$(id -u)" = "0" ]; then
-    # Ensure correct permissions on key directories
     # Create and set permissions on required directories
-    mkdir -p $DATA_DIR $RUN_DIR $LOG_DIR $CONFIG_DIR /var/lib/mysql-files
+    mkdir -p $DATA_ROOT $DATA_DIR $RUN_DIR $LOG_DIR $CONFIG_DIR $MYSQL_FILES_DIR
     
     # Set proper permissions for MySQL directories
-    chown -R mysql:mysql $DATA_DIR $RUN_DIR $LOG_DIR $CONFIG_DIR /var/lib/mysql-files
-    chmod 750 $DATA_DIR /var/lib/mysql-files
+    chown -R mysql:mysql $DATA_ROOT $RUN_DIR $LOG_DIR $CONFIG_DIR
+    chmod 750 $DATA_ROOT $DATA_DIR $MYSQL_FILES_DIR
     chmod 755 $RUN_DIR $LOG_DIR $CONFIG_DIR
     
     # Ensure directory is clean for initialization
@@ -32,11 +31,11 @@ pid-file = /var/run/mysqld/mysqld.pid
 socket = ${MYSQL_SOCKET}
 port = ${MYSQL_PORT}
 basedir = /usr
-datadir = /var/lib/mysql
+datadir = ${DATA_DIR}
 tmpdir = /tmp
 bind-address = 0.0.0.0
-log-error = /var/log/mysql/error.log
-secure-file-priv = NULL
+log-error = ${LOG_DIR}/error.log
+secure-file-priv = ${MYSQL_FILES_DIR}
 log_error_suppression_list='MY-013360'
 
 !includedir /etc/my.cnf.d
@@ -54,8 +53,8 @@ EOF
     chown -R mysql:mysql /home/mysql
 
     # Set proper permissions
-    chown -R mysql:mysql $DATA_DIR $RUN_DIR $LOG_DIR $CONFIG_DIR
-    chmod 750 $DATA_DIR
+    chown -R mysql:mysql $DATA_ROOT $RUN_DIR $LOG_DIR $CONFIG_DIR
+    chmod 750 $DATA_ROOT $DATA_DIR
     chmod 755 $RUN_DIR $LOG_DIR $CONFIG_DIR
     chmod 644 /etc/my.cnf
 
@@ -101,9 +100,9 @@ main() {
     HOST=${AKASH_INGRESS_HOST:-localhost}
     MYSQL_PORT=${MYSQL_PORT:-3306}
     MYSQL_EXTERNAL_PORT=${AKASH_EXTERNAL_PORT_3306:-$MYSQL_PORT}
-    export MYSQL_PORT MYSQL_EXTERNAL_PORT
     log_info "Configured MySQL internal port: ${MYSQL_PORT}"
     log_info "Configured MySQL external port: ${MYSQL_EXTERNAL_PORT}"
+    log_info "Configured hostname: ${HOST}"
     
     # Use Akash environment variables directly and export
     NODE_ID=$(echo "${AKASH_INGRESS_HOST}:${AKASH_EXTERNAL_PORT_3306}" | sha256sum | cut -c1-8)

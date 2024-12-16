@@ -588,3 +588,6 @@ get_node_port() {
        get_node_info "$node" | jq -r '.port // empty'
    fi
 }
+
+# Start lease monitoring
+monitor_log "${LEASE_LOG}" "${LEASE_MONITOR_PID}"

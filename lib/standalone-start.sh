@@ -48,7 +48,7 @@ if detect_mysql_state; then
 fi
 
 # Start MySQL in standalone mode (server_id=1 for standalone)
-if ! start_mysql "$ROLE" 1 "" "${MYSQL_ARGS[@]}"; then
+if ! start_mysql "$ROLE" 1 "$HOST" "${MYSQL_ARGS[@]}"; then
     log_error "Failed to start MySQL server"
     exit 1
 fi
@@ -56,10 +56,14 @@ fi
 log_info "MySQL is running in standalone mode"
 log_info "Port: ${MYSQL_PORT}"
 
-
-# Start monitoring backup status
-monitor_backup_status &
-BACKUP_MONITOR_PID=$!
+# Start backup monitoring if enabled
+if [ "${BACKUP_ENABLED}" = "true" ]; then
+    # Create monitor directory if it doesn't exist
+    mkdir -p "${MONITOR_STATE_DIR}"
+    
+    # Start backup monitoring
+    monitor_log "${BACKUP_LOG}" "${BACKUP_MONITOR_PID}"
+fi
 
 # Wait for MySQL process
 wait $MYSQL_PID || {

@@ -75,18 +75,19 @@ init_mysql() {
         if ! mysqld --initialize-insecure --user=mysql \
             --datadir="$DATA_DIR" \
             --basedir=/usr \
-            --secure-file-priv="/var/lib/mysql-files" \
+            --secure-file-priv="${MYSQL_FILES_DIR}" \
             --pid-file="${RUN_DIR}/mysqld.pid" \
-            --log-error="${LOG_DIR}/init-error.log" \
+            --log-error="${INIT_ERROR_LOG}" \
             --innodb-buffer-pool-size=32M \
             --innodb-log-file-size=48M \
             --max-connections=10 \
             --performance-schema=OFF \
-            --skip-log-bin; then
+            --skip-log-bin \
+            --skip-mysqlx; then
             log_error "MySQL initialization failed"
-            if [ -f "${LOG_DIR}/init-error.log" ]; then
+            if [ -f "${INIT_ERROR_LOG}" ]; then
                 log_error "Initialization error log:"
-                cat "${LOG_DIR}/init-error.log"
+                cat "${INIT_ERROR_LOG}"
             fi
             return 1
         fi
@@ -110,12 +111,20 @@ init_mysql() {
             rm -f "${RUN_DIR}/mysqld.pid"
             
             # Start with error logging and explicit paths
+            SSL_CERT_DIR="${MYSQL_SSL_DIR}" \
+            SSL_CERT_FILE="${MYSQL_SSL_CA}" \
             mysqld --skip-grant-tables --skip-networking \
                   --datadir="$DATA_DIR" \
                   --socket="${MYSQL_SOCKET}" \
                   --pid-file="${RUN_DIR}/mysqld.pid" \
                   --log-error="${LOG_DIR}/init-error.log" \
                   --port="${MYSQL_PORT}" \
+                  --ssl-ca="${MYSQL_SSL_CA}" \
+                  --ssl-cert="${MYSQL_SSL_CERT}" \
+                  --ssl-key="${MYSQL_SSL_KEY}" \
+                  --ssl-cipher="ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256" \
+                  --tls-version="TLSv1.2" \
+                  --skip-mysqlx \
                   --user=mysql &
             TEMP_MYSQL_PID=$!
             
@@ -135,7 +144,7 @@ init_mysql() {
             local attempt=1
             while [ $attempt -le $max_attempts ]; do
                 if [ -S "${MYSQL_SOCKET}" ]; then
-                    if mysql -u root --socket="${MYSQL_SOCKET}" -e "SELECT 1" >/dev/null 2>&1; then
+                    if mysql --no-defaults -u root --socket="${MYSQL_SOCKET}" -e "SELECT 1" >/dev/null 2>&1; then
                         log_info "Temporary MySQL instance is ready"
                         break
                     fi
@@ -203,6 +212,47 @@ init_state_dir() {
 
 # Call during startup
 init_state_dir
+
+# Initialize CA trust directory
+init_ca_trust() {
+    # Check if CA certificate exists
+    if [ ! -f "${MYSQL_SSL_CA}" ]; then
+        log_error "CA certificate not found at ${MYSQL_SSL_CA}"
+        return 1
+    fi
+
+    # Create and clean CA trust directory
+    mkdir -p "${MYSQL_SSL_TRUST_DIR}"
+    rm -f "${MYSQL_SSL_TRUST_DIR}"/*
+    
+    # Copy our CA certificate
+    cp "${MYSQL_SSL_CA}" "${MYSQL_SSL_TRUST_DIR}/" || {
+        log_error "Failed to copy CA certificate to trust directory"
+        return 1
+    }
+    
+    # Create hash symlinks
+    c_rehash "${MYSQL_SSL_TRUST_DIR}" || {
+        log_error "Failed to create certificate hash links"
+        return 1
+    }
+    
+    # Set proper permissions
+    chown -R mysql:mysql "${MYSQL_SSL_TRUST_DIR}"
+    chmod -R 500 "${MYSQL_SSL_TRUST_DIR}"
+}
+
+# Generate SSL certificates if needed
+if ! generate_ssl_certificates; then
+    log_error "Failed to generate SSL certificates"
+    return 1
+fi
+
+# Initialize CA trust directory
+if ! init_ca_trust; then
+    log_error "Failed to initialize CA trust directory"
+    return 1
+fi
 
 # Start MySQL with enhanced configuration and monitoring
 start_mysql() {
@@ -310,12 +360,11 @@ start_mysql() {
     rm -rf "${DATA_DIR}/plugin"/*
     
     # Ensure error log directory exists
-    local ERROR_LOG="${LOG_DIR}/error.log"
-    mkdir -p "$(dirname "$ERROR_LOG")" 2>/dev/null || true
-    touch "$ERROR_LOG" 2>/dev/null || true
+    mkdir -p "$(dirname "${ERROR_LOG}")" 2>/dev/null || true
+    touch "${ERROR_LOG}" 2>/dev/null || true
     
     # Start log monitoring in background
-    monitor_log "$ERROR_LOG" "${STATE_DIR}/monitor/error_monitor.pid"
+    monitor_log "${ERROR_LOG}" "${ERROR_MONITOR_PID}"
     
     # Kill any existing MySQL processes
     pkill mysqld || true
@@ -328,14 +377,21 @@ start_mysql() {
     rm -f "${MYSQL_SOCKET}"
     
     # Start MySQL
+    SSL_CERT_DIR="${MYSQL_SSL_DIR}" \
+    SSL_CERT_FILE="${MYSQL_SSL_CA}" \
     mysqld \
         --user=mysql \
         --port="${MYSQL_PORT}" \
-        --log-error="${LOG_DIR}/error.log" \
+        --log-error="${ERROR_LOG}" \
         --skip-mysqlx \
         --datadir="${DATA_DIR}" \
         --pid-file="${RUN_DIR}/mysqld.pid" \
-        --socket="${MYSQL_SOCKET}" &
+        --socket="${MYSQL_SOCKET}" \
+        --ssl-ca="${MYSQL_SSL_CA}" \
+        --ssl-cert="${MYSQL_SSL_CERT}" \
+        --ssl-key="${MYSQL_SSL_KEY}" \
+        --ssl-cipher="ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256" \
+        --tls-version="TLSv1.2" &
 
     MYSQL_PID=$!
 
@@ -349,9 +405,9 @@ start_mysql() {
     # Check if MySQL process is still running
     if ! kill -0 $MYSQL_PID 2>/dev/null; then
         log_error "MySQL process died during startup"
-        if [ -f "${LOG_DIR}/error.log" ]; then
+        if [ -f "${ERROR_LOG}" ]; then
             log_error "Last 10 lines of error log:"
-            tail -n 10 "${LOG_DIR}/error.log" >&2
+            tail -n 10 "${ERROR_LOG}" >&2
         fi
         return 1
     fi

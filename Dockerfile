@@ -23,15 +23,12 @@ USER root
 # Install dependencies and set up directories in a single layer
 RUN percona-release enable pxb-80 && \
     yum install -y --setopt=tsflags=nodocs \
-    percona-xtrabackup-80 lz4 zstd jq nc gettext openssl && \
+    percona-xtrabackup-80 lz4 zstd jq nc gettext openssl openssl-perl && \
     curl -fsSLO "$SUPERCRONIC_URL" \
     && echo "${SUPERCRONIC_SHA1SUM}  ${SUPERCRONIC}" | sha1sum -c - \
     && chmod +x "$SUPERCRONIC" \
     && mv "$SUPERCRONIC" "/usr/local/bin/${SUPERCRONIC}" \
     && ln -s "/usr/local/bin/${SUPERCRONIC}" /usr/local/bin/supercronic && \
-    mkdir -p /var/lib/mysql/state/backup/config && \
-    chown -R mysql:mysql /var/lib/mysql && \
-    chmod 750 /var/lib/mysql/state && \
     yum clean all && \
     rm -rf /var/cache/yum && \
     mkdir -p /var/log/{mysql,mysql-manager} /etc/mysql /var/run/mysqld /etc/mysql/conf.d && \
@@ -62,6 +59,8 @@ EXPOSE 8080 3306 33060
 
 # Keep root as the default user since entrypoint needs to handle permissions
 USER root
+
+VOLUME ["/var/lib/data"]
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["mysqld"]

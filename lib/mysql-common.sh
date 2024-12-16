@@ -12,16 +12,10 @@ declare -g MYSQL_PID=""
 declare -g LEASE_KEEPALIVE_PID=""
 declare -g HEALTH_UPDATE_PID=""
 
-# Protected paths that should never be deleted
-declare -g PROTECTED_PATHS=(
-    "backup-keys"
-    "mysql-files"
-)
-
 # Lock file paths
 declare -gr MYSQL_LOCK_DIR="${STATE_DIR}/locks"
 
-# Safely clear directory contents while preserving protected paths
+# Safely clear directory contents
 safe_clear_directory() {
     local dir="$1"
     
@@ -30,31 +24,10 @@ safe_clear_directory() {
         return 1
     fi
 
-    log_info "Safely clearing directory: $dir"
-    log_info "Protected paths: ${PROTECTED_PATHS[*]}"
+    log_info "Clearing directory: $dir"
     
-    for f in "$dir"/*; do
-        # Skip if file doesn't exist (empty directory)
-        [ ! -e "$f" ] && continue
-        
-        local basename
-        basename=$(basename "$f")
-        
-        # Check if path is protected
-        local is_protected=0
-        for protected in "${PROTECTED_PATHS[@]}"; do
-            if [ "$basename" = "$protected" ]; then
-                log_info "Preserving protected path: $basename"
-                is_protected=1
-                break
-            fi
-        done
-        
-        if [ $is_protected -eq 0 ]; then
-            log_info "Removing: $basename"
-            rm -rf "$f"
-        fi
-    done
+    # Simply remove all contents
+    rm -rf "${dir:?}"/*
     
     return 0
 }

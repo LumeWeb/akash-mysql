@@ -8,6 +8,8 @@ init_state_directories() {
         "${CONFIG_STATE_DIR}"
         "${CRON_STATE_DIR}"
         "${ETCD_STATE_DIR}"
+        "${SSL_STATE_DIR}"
+        "${MONITOR_STATE_DIR}"
     )
 
     for dir in "${dirs[@]}"; do
