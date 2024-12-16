@@ -37,6 +37,7 @@ A production-ready MySQL solution optimized for Akash Network deployments, suppo
 - `ETCDCTL_ENDPOINTS`: etcd endpoints (required for cluster mode)
 - `ETC_USERNAME`: etcd authentication username (optional)
 - `ETC_PASSWORD`: etcd authentication password (optional)
+- `ETC_PREFIX`: etcd key prefix for all MySQL cluster data (default: /mysql)
 
 ## etcd Schema
 
