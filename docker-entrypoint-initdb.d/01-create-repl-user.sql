@@ -1,6 +1,7 @@
--- Create replication user with caching_sha2_password authentication
+-- Create replication user with SSL requirement
 CREATE USER IF NOT EXISTS '$MYSQL_REPL_USERNAME'@'%'
-    IDENTIFIED WITH caching_sha2_password BY '$MYSQL_REPL_PASSWORD';
+    IDENTIFIED WITH caching_sha2_password BY '$MYSQL_REPL_PASSWORD'
+    REQUIRE SSL;
 
 -- Grant necessary privileges for replication
 GRANT REPLICATION SLAVE ON *.* TO '$MYSQL_REPL_USERNAME'@'%';

@@ -51,3 +51,9 @@ declare -gr S3_PATH="${S3_PATH:-backups}"
 
 # Recovery preferences
 declare -gr RECOVER_FROM_BACKUP="${RECOVER_FROM_BACKUP:-true}"
+
+# SSL configuration
+declare -gr MYSQL_SSL_DIR="/etc/mysql/ssl"
+declare -gr MYSQL_SSL_CA="${MYSQL_SSL_DIR}/ca-cert.pem"
+declare -gr MYSQL_SSL_CERT="${MYSQL_SSL_DIR}/server-cert.pem"
+declare -gr MYSQL_SSL_KEY="${MYSQL_SSL_DIR}/server-key.pem"

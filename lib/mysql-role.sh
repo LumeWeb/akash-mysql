@@ -264,21 +264,18 @@ handle_demotion_to_slave() {
             CHANGE REPLICATION SOURCE TO
                 SOURCE_HOST='$source_host',
                 SOURCE_PORT=$source_port,
+                SOURCE_USER='$MYSQL_REPL_USERNAME',
+                SOURCE_PASSWORD='$MYSQL_REPL_PASSWORD',
+                SOURCE_SSL=1,
+                SOURCE_SSL_VERIFY_SERVER_CERT=0,
+                SOURCE_SSL_CA='${MYSQL_SSL_CA}',
+                SOURCE_SSL_CERT='${MYSQL_SSL_CERT}',
+                SOURCE_SSL_KEY='${MYSQL_SSL_KEY}',
                 SOURCE_AUTO_POSITION=1;
+            START REPLICA;
             SET GLOBAL read_only = ON;
             SET GLOBAL super_read_only = ON;"; then
             log_error "Failed to configure replication channel"
-            attempt=$((attempt + 1))
-            sleep $wait_time
-            wait_time=$((wait_time * 2))
-            continue
-        fi
-
-        # Start replica with credentials
-        log_info "Starting replication"
-        if ! mysql_retry_auth root "${MYSQL_ROOT_PASSWORD}" -e "
-            START REPLICA USER='$MYSQL_REPL_USERNAME' PASSWORD='$MYSQL_REPL_PASSWORD';"; then
-            log_error "Failed to start replication"
             attempt=$((attempt + 1))
             sleep $wait_time
             wait_time=$((wait_time * 2))

@@ -257,6 +257,12 @@ configure_mysql_files() {
     local role=$1
     local server_id=$2
 
+    # Generate SSL certificates before configuring MySQL
+    generate_ssl_certificates
+    
+    # Configure global client SSL settings
+    configure_mysql_client_ssl
+    
     # Try to ensure directories exist, but don't fail if we can't
     mkdir -p "${CONFIG_DIR}" 2>/dev/null || true
     mkdir -p /var/run/mysqld 2>/dev/null || true
@@ -265,6 +271,16 @@ configure_mysql_files() {
     # Skip writing main config as it should be handled by root during container build
     # Skip permissions as they should be handled by root during container build
 
+    # Common SSL configuration to add to each [mysqld] section
+    ssl_config="
+    # SSL Configuration
+    ssl
+    ssl_cert = ${MYSQL_SSL_CERT}
+    ssl_key = ${MYSQL_SSL_KEY}
+    ssl_ca = ${MYSQL_SSL_CA}
+    require_secure_transport = ON
+    "
+
     case "$role" in
         "standalone")
             cat > "${CONFIG_DIR}/server.cnf" << EOF
@@ -272,6 +288,8 @@ configure_mysql_files() {
 server-id = $server_id
 bind-address = 0.0.0.0
 port = ${MYSQL_PORT}
+
+${ssl_config}
 
 # Binary logging
 log_bin = ${server_id}-bin
@@ -295,6 +313,8 @@ EOF
             cat > "${CONFIG_DIR}/replication.cnf" << EOF
 [mysqld]
 server-id = $server_id
+
+${ssl_config}
 
 # Binary logging
 log_bin = ${server_id}-bin
@@ -324,6 +344,8 @@ EOF
             cat > "${CONFIG_DIR}/replication.cnf" << EOF
 [mysqld]
 server-id = $server_id
+
+${ssl_config}
 
 # Binary logging (for promotion readiness)
 log_bin = ${server_id}-bin
@@ -459,4 +481,71 @@ verify_gtid_configuration() {
 
     log_info "GTID configuration verified and enabled successfully"
     return 0
+}
+
+# Add this new function to mysql-config.sh
+generate_ssl_certificates() {
+    log_info "Checking SSL certificates..."
+    
+    # Create SSL directory if it doesn't exist
+    mkdir -p "${MYSQL_SSL_DIR}"
+    
+    if [ ! -f "${MYSQL_SSL_KEY}" ]; then
+        log_info "Generating new SSL certificates..."
+        
+        # Generate CA key and certificate
+        openssl genrsa 2048 > "${MYSQL_SSL_DIR}/ca-key.pem"
+        openssl req -new -x509 -nodes -days 3650 \
+            -key "${MYSQL_SSL_DIR}/ca-key.pem" \
+            -out "${MYSQL_SSL_DIR}/ca-cert.pem" \
+            -subj "/CN=MySQL_Server"
+
+        # Generate server key and certificate
+        openssl req -newkey rsa:2048 -nodes -days 3650 \
+            -keyout "${MYSQL_SSL_DIR}/server-key.pem" \
+            -out "${MYSQL_SSL_DIR}/server-req.pem" \
+            -subj "/CN=${HOST}"
+        openssl rsa -in "${MYSQL_SSL_DIR}/server-key.pem" -out "${MYSQL_SSL_DIR}/server-key.pem"
+        openssl x509 -req -in "${MYSQL_SSL_DIR}/server-req.pem" -days 3650 \
+            -CA "${MYSQL_SSL_DIR}/ca-cert.pem" \
+            -CAkey "${MYSQL_SSL_DIR}/ca-key.pem" \
+            -set_serial 01 -out "${MYSQL_SSL_DIR}/server-cert.pem"
+
+        # Generate client key and certificate
+        openssl req -newkey rsa:2048 -nodes -days 3650 \
+            -keyout "${MYSQL_SSL_DIR}/client-key.pem" \
+            -out "${MYSQL_SSL_DIR}/client-req.pem" \
+            -subj "/CN=MySQL_Client"
+        openssl rsa -in "${MYSQL_SSL_DIR}/client-key.pem" -out "${MYSQL_SSL_DIR}/client-key.pem"
+        openssl x509 -req -in "${MYSQL_SSL_DIR}/client-req.pem" -days 3650 \
+            -CA "${MYSQL_SSL_DIR}/ca-cert.pem" \
+            -CAkey "${MYSQL_SSL_DIR}/ca-key.pem" \
+            -set_serial 02 -out "${MYSQL_SSL_DIR}/client-cert.pem"
+
+        # Set proper permissions
+        chmod 400 "${MYSQL_SSL_DIR}"/*.pem
+        chown -R mysql:mysql "${MYSQL_SSL_DIR}"
+        
+        log_info "SSL certificates generated successfully"
+    else
+        log_info "Using existing SSL certificates"
+    fi
+}
+
+# Configure global MySQL client SSL settings
+configure_mysql_client_ssl() {
+    local client_cnf="/etc/my.cnf.d/client-ssl.cnf"
+    
+    log_info "Configuring global MySQL client SSL settings"
+    
+    cat > "$client_cnf" << EOF
+[client]
+ssl-ca = ${MYSQL_SSL_CA}
+ssl-cert = ${MYSQL_SSL_CERT}
+ssl-key = ${MYSQL_SSL_KEY}
+ssl-mode = VERIFY_IDENTITY
+ssl-verify-server-cert = 0
+EOF
+
+    chmod 644 "$client_cnf"
 }

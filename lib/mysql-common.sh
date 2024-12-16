@@ -82,7 +82,9 @@ mysql_retry() {
     local wait_time=1
 
     while [ $attempt -le $max_attempts ]; do
-        if timeout "${MYSQL_CONNECT_TIMEOUT}" mysql -u"${MYSQL_REPL_USERNAME}" -p"${MYSQL_REPL_PASSWORD}" "$@"; then
+        if timeout "${MYSQL_CONNECT_TIMEOUT}" mysql \
+            -u"${MYSQL_REPL_USERNAME}" \
+            -p"${MYSQL_REPL_PASSWORD}" "$@"; then
             return 0
         fi
         log_warn "MySQL command failed (attempt $attempt/$max_attempts)"
@@ -105,7 +107,9 @@ mysql_retry_auth() {
     local wait_time=1
 
     while [ $attempt -le $max_attempts ]; do
-        if timeout "${MYSQL_CONNECT_TIMEOUT}" mysql --defaults-extra-file=<(echo $'[client]\npassword='"$password") -u"$user" "$@"; then
+        if timeout "${MYSQL_CONNECT_TIMEOUT}" mysql \
+            --defaults-extra-file=<(echo $'[client]\npassword='"$password") \
+            -u"$user" "$@"; then
             return 0
         fi
         log_warn "MySQL command failed (attempt $attempt/$max_attempts)"
