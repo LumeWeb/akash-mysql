@@ -28,14 +28,6 @@ if [ -n "$ETCD_USERNAME" ]; then
     log_info "Using etcd authentication with user: $ETCD_USERNAME"
 fi
 
-# Base paths for MySQL cluster coordination
-declare -gr ETCD_BASE="/mysql"
-declare -gr ETCD_NODES="${ETCD_BASE}/nodes"
-declare -gr ETCD_TOPOLOGY_PREFIX="${ETCD_BASE}/topology"
-declare -gr ETCD_MASTER_KEY="${ETCD_TOPOLOGY_PREFIX}/master"
-declare -gx ETCDCTL_USER
-declare -gx ETCDCTL_API
-
 # Configure etcdctl environment variables
 setup_etcd_env() {
     ETCDCTL_API=3

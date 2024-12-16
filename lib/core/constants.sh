@@ -83,3 +83,10 @@ declare -gr BACKUP_LOG="${LOG_DIR}/backup.log"
 declare -gr LEASE_LOG="${LOG_DIR}/lease.log"
 declare -gr INIT_ERROR_LOG="${LOG_DIR}/init-error.log"
 declare -gr SLOW_QUERY_LOG="${LOG_DIR}/slow-query.log"
+
+# Base paths for MySQL cluster coordination
+declare -gr ETC_PREFIX=${ETC_PREFIX:-"/mysql"}  # Allow override via environment variable
+declare -gr ETCD_BASE="${ETC_PREFIX}"
+declare -gr ETCD_NODES="${ETCD_BASE}/nodes"
+declare -gr ETCD_TOPOLOGY_PREFIX="${ETCD_BASE}/topology"
+declare -gr ETCD_MASTER_KEY="${ETCD_TOPOLOGY_PREFIX}/master"
