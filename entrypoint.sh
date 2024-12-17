@@ -126,9 +126,9 @@ main() {
 
     if [ "$1" = 'mysqld' ]; then
         if [ "$CLUSTER_MODE" = "true" ]; then
-            exec "${LIB_PATH}/cluster-start.sh" "$@"
+            source "${LIB_PATH}/cluster-start.sh" "$@"
         else
-            exec "${LIB_PATH}/standalone-start.sh" "$@"
+            source "${LIB_PATH}/standalone-start.sh" "$@"
         fi
     fi
 
