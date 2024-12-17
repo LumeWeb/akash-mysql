@@ -90,3 +90,5 @@ declare -gr ETCD_BASE="${ETC_PREFIX}"
 declare -gr ETCD_NODES="${ETCD_BASE}/nodes"
 declare -gr ETCD_TOPOLOGY_PREFIX="${ETCD_BASE}/topology"
 declare -gr ETCD_MASTER_KEY="${ETCD_TOPOLOGY_PREFIX}/master"
+declare -gx ETCDCTL_USER
+declare -gx ETCDCTL_API
