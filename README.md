@@ -1,6 +1,8 @@
 # MySQL for Akash
 
-A production-ready MySQL solution optimized for Akash Network deployments, supporting both standalone and high-availability cluster modes.
+A production-ready MySQL solution optimized for Akash Network deployments, with robust standalone mode and experimental cluster support.
+
+> **⚠️ WARNING:** Cluster mode is currently a work in progress and should not be used in production environments. Stick to standalone mode for production workloads until cluster mode is fully tested and stable.
 
 ## Features
 
