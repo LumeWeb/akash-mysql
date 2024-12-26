@@ -48,12 +48,6 @@ COPY ./docker-entrypoint-initdb.d /docker-entrypoint-initdb.d
 # Make entrypoint executable
 RUN chmod +x /entrypoint.sh
 
-
-# Configure environment
-ENV METRICS_PORT=9104 \
-    METRICS_USERNAME=admin \
-    METRICS_PASSWORD=
-
 # Expose ports
 EXPOSE 8080 3306 33060
 

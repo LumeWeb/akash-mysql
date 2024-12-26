@@ -74,11 +74,15 @@ start_services() {
     if command -v crond >/dev/null 2>&1; then
         start_cron
     fi
+
+    # Start akash-metrics-exporter
+    akash-metrics-exporter &
 }
 
 # Stop services before exit
 stop_services() {
     stop_cron
+    pkill akash-metrics-exporter
 }
 
 # Main entrypoint logic
