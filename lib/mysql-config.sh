@@ -382,6 +382,7 @@ EOF
 
     # Configure backup streaming
     configure_backup_streaming
+
     return 0
 }
 

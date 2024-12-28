@@ -1,13 +1,20 @@
 ARG MYSQL_VERSION=8
 ARG METRICS_EXPORTER_VERSION=develop
-ARG MYSQL_MANAGER_VERSION=develop
+ARG METRICS_REGISTRAR_VERSION=develop
 ARG ETCD_VERSION=3.5
+ARG GO_VERSION=1.23
 
 # Disable Percona Telemetry
 ARG PERCONA_TELEMETRY_DISABLE=1
 
-# Use metrics exporter as builder stage
+# Use metrics exporter and registrar as builder stages
 FROM ghcr.io/lumeweb/akash-metrics-exporter:${METRICS_EXPORTER_VERSION} AS metrics-exporter
+FROM ghcr.io/lumeweb/akash-metrics-registrar:${METRICS_REGISTRAR_VERSION} AS metrics-registrar
+
+# Build mysqld_exporter
+FROM golang:${GO_VERSION} AS mysqld-builder
+RUN CGO_ENABLED=0 go install github.com/prometheus/mysqld_exporter@latest
+
 FROM docker.io/bitnami/etcd:${ETCD_VERSION} as etcd
 
 FROM percona:${MYSQL_VERSION}
@@ -41,7 +48,11 @@ COPY --chown=mysql:mysql paths.sh /paths.sh
 COPY --chown=mysql:mysql lib/ /usr/local/lib/
 COPY --chown=mysql:mysql bin/mysql-backup-* /usr/local/bin/
 RUN chmod 755 /usr/local/bin/mysql-backup-*
+
+# Copy binaries from builder stages
 COPY --from=metrics-exporter /usr/bin/metrics-exporter /usr/bin/akash-metrics-exporter
+COPY --from=metrics-registrar /usr/bin/metrics-registrar /usr/bin/akash-metrics-registrar
+COPY --from=mysqld-builder /go/bin/mysqld_exporter /usr/bin/mysqld_exporter
 COPY --from=etcd /opt/bitnami/etcd/bin/etcdctl /usr/bin/etcdctl
 COPY ./docker-entrypoint-initdb.d /docker-entrypoint-initdb.d
 

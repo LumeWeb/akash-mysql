@@ -75,8 +75,26 @@ start_services() {
         start_cron
     fi
 
-    # Start akash-metrics-exporter
+    # Set exporter password same as root
+    export MYSQL_EXPORTER_PASSWORD="${MYSQL_ROOT_PASSWORD}"
+
+    # Start MySQL exporter (internal only)
+    export MYSQLD_EXPORTER_PASSWORD="${MYSQL_EXPORTER_PASSWORD}"
+    mysqld_exporter \
+        --web.listen-address=":9104" \
+        --mysqld.username="exporter" \
+        --mysqld.address="localhost:${MYSQL_PORT}" &
+
+    # Start Akash metrics exporter (env vars already set)
     akash-metrics-exporter &
+    # Start Akash metrics registrar
+    akash-metrics-registrar \
+        --target-host="localhost" \
+        --target-port=9104 \
+        --target-path="/metrics" \
+        --proxy-port=9090 \
+        --exporter-type="mysql" \
+        --metrics-password="${METRICS_PASSWORD}" &
 }
 
 # Stop services before exit
