@@ -52,6 +52,15 @@ EOF
     cp /root/.my.cnf /home/mysql/.my.cnf
     chown -R mysql:mysql /home/mysql
 
+    # Create MySQL exporter configuration
+    cat > "${CONFIG_DIR}/exporter.cnf" << EOF
+[client]
+user = exporter
+password = ${MYSQL_ROOT_PASSWORD}
+socket = ${MYSQL_SOCKET}
+EOF
+    chmod 600 "${CONFIG_DIR}/exporter.cnf"
+
     # Set proper permissions
     chown -R mysql:mysql $DATA_ROOT $RUN_DIR $LOG_DIR $CONFIG_DIR
     chmod 750 $DATA_ROOT $DATA_DIR
@@ -79,8 +88,7 @@ start_services() {
     export MYSQLD_EXPORTER_PASSWORD="${MYSQL_ROOT_PASSWORD}"
     mysqld_exporter \
          --web.listen-address=":9104" \
-         --mysqld.username="exporter" \
-         --mysqld.address="unix://${MYSQL_SOCKET}" \
+         --config.my-cnf="${CONFIG_DIR}/exporter.cnf" \
          --tls.insecure-skip-verify &
 
     # Start Akash metrics exporter (env vars already set)
