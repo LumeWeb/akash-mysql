@@ -75,11 +75,8 @@ start_services() {
         start_cron
     fi
 
-    # Set exporter password same as root
-    export MYSQL_EXPORTER_PASSWORD="${MYSQL_ROOT_PASSWORD}"
-
     # Start MySQL exporter (internal only)
-    export MYSQLD_EXPORTER_PASSWORD="${MYSQL_EXPORTER_PASSWORD}"
+    export MYSQLD_EXPORTER_PASSWORD="${MYSQL_ROOT_PASSWORD}"
     mysqld_exporter \
         --web.listen-address=":9104" \
         --mysqld.username="exporter" \
