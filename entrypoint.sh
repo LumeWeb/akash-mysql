@@ -78,9 +78,10 @@ start_services() {
     # Start MySQL exporter (internal only)
     export MYSQLD_EXPORTER_PASSWORD="${MYSQL_ROOT_PASSWORD}"
     mysqld_exporter \
-        --web.listen-address=":9104" \
-        --mysqld.username="exporter" \
-        --mysqld.address="localhost:${MYSQL_PORT}" &
+         --web.listen-address=":9104" \
+         --mysqld.username="exporter" \
+         --mysqld.address="unix://${MYSQL_SOCKET}" \
+         --tls.insecure-skip-verify &
 
     # Start Akash metrics exporter (env vars already set)
     akash-metrics-exporter &
