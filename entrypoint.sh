@@ -92,7 +92,7 @@ start_services() {
         --target-host="localhost" \
         --target-port=9104 \
         --target-path="/metrics" \
-        --proxy-port=9090 \
+        --metrics-port=9090 \
         --exporter-type="mysql" \
         --metrics-password="${METRICS_PASSWORD}" &
 }
