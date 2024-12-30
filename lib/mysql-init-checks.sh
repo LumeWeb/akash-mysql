@@ -25,7 +25,7 @@ detect_mysql_state() {
     fi
 
     # 2. Check Critical System Files
-    local critical_files=("ibdata1" "auto.cnf" "mysql/user.ibd")
+    local critical_files=("ibdata1" "auto.cnf")
     local missing_critical=0
     
     for file in "${critical_files[@]}"; do
@@ -104,8 +104,7 @@ detect_mysql_state() {
     # Validate System-Only Installation
     if [ -f "${data_dir}/auto.cnf" ] && \
        [ -f "${data_dir}/ibdata1" ] && \
-       [ -d "${data_dir}/mysql" ] && \
-       [ -f "${data_dir}/mysql/user.ibd" ]; then
+       [ -d "${data_dir}/mysql" ]; then
         log_info "Valid system-only installation detected"
         return 1
     fi
