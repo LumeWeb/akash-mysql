@@ -61,6 +61,15 @@ mysqld_exporter \
  --config.my-cnf="${CONFIG_DIR}/exporter.cnf" \
  --tls.insecure-skip-verify &
 
+ # Start Akash metrics registrar
+ akash-metrics-registrar \
+     --target-host="localhost" \
+     --target-port=9104 \
+     --target-path="/metrics" \
+     --metrics-port=9090 \
+     --exporter-type="mysql" \
+     --metrics-password="${METRICS_PASSWORD}" &
+
 log_info "MySQL is running in standalone mode"
 log_info "Port: ${MYSQL_PORT}"
 

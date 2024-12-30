@@ -86,14 +86,6 @@ start_services() {
 
     # Start Akash metrics exporter (env vars already set)
     akash-metrics-exporter &
-    # Start Akash metrics registrar
-    akash-metrics-registrar \
-        --target-host="localhost" \
-        --target-port=9104 \
-        --target-path="/metrics" \
-        --metrics-port=9090 \
-        --exporter-type="mysql" \
-        --metrics-password="${METRICS_PASSWORD}" &
 }
 
 # Stop services before exit
