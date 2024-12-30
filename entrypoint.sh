@@ -84,13 +84,6 @@ start_services() {
         start_cron
     fi
 
-    # Start MySQL exporter (internal only)
-    export MYSQLD_EXPORTER_PASSWORD="${MYSQL_ROOT_PASSWORD}"
-    mysqld_exporter \
-         --web.listen-address=":9104" \
-         --config.my-cnf="${CONFIG_DIR}/exporter.cnf" \
-         --tls.insecure-skip-verify &
-
     # Start Akash metrics exporter (env vars already set)
     akash-metrics-exporter &
     # Start Akash metrics registrar

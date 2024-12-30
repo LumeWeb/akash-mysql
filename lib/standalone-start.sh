@@ -53,6 +53,14 @@ if ! start_mysql "$ROLE" 1 "$HOST" "${MYSQL_ARGS[@]}"; then
     exit 1
 fi
 
+
+# Start MySQL exporter (internal only)
+export MYSQLD_EXPORTER_PASSWORD="${MYSQL_ROOT_PASSWORD}"
+mysqld_exporter \
+ --web.listen-address=":9104" \
+ --config.my-cnf="${CONFIG_DIR}/exporter.cnf" \
+ --tls.insecure-skip-verify &
+
 log_info "MySQL is running in standalone mode"
 log_info "Port: ${MYSQL_PORT}"
 
