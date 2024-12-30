@@ -9,87 +9,9 @@ source "${LIB_PATH}/mysql-init-checks.sh"
 source "${LIB_PATH}/mysql-backup.sh"
 source "${LIB_PATH}/mysql-role.sh"
 
-# Return codes:
-# 0 = Fresh install needed
-# 1 = Existing valid installation
-# 2 = Recovery needed
-# 3 = Error state
-detect_mysql_state() {
-    log_info "Detecting MySQL installation state..."
-    
-    # Check if initialization is in progress
-    if [ -f "${RUN_DIR}/init.lock" ]; then
-        log_info "MySQL initialization in progress, treating as fresh install"
-        return 0
-    fi
-    
-    # Case 1: Check if fresh installation needed
-    if ! check_mysql_initialized "$DATA_DIR"; then
-        log_info "Fresh installation needed - missing critical files"
-        return 0
-    fi
+# Import the consolidated state detection
+source "${LIB_PATH}/mysql-init-checks.sh"
 
-    # Case 2: Check for corruption
-    if check_mysql_corruption "$DATA_DIR" "$LOG_DIR"; then
-        log_warn "Found corruption markers in error log"
-        return 2
-    fi
-
-    # Case 3: Check for valid installation with enhanced validation
-    if [ -d "${DATA_DIR}/mysql" ] && \
-       [ -f "${DATA_DIR}/ibdata1" ] && \
-       [ -f "${DATA_DIR}/auto.cnf" ]; then
-        
-        # Check for critical system tables
-        if [ ! -f "${DATA_DIR}/mysql/user.ibd" ] || \
-           [ ! -f "${DATA_DIR}/mysql/tables.ibd" ] || \
-           [ ! -f "${DATA_DIR}/mysql/innodb_table_stats.ibd" ]; then
-            log_warn "Missing critical system tables"
-            return 2
-        fi
-        
-        # Additional corruption checks
-        if [ -f "${DATA_DIR}/aria_log_control" ] || \
-           [ -f "${DATA_DIR}/multi-master.info" ] || \
-           [ -f "${DATA_DIR}/#innodb_temp" ]; then
-            log_warn "Found indicators of unclean shutdown or corruption"
-            return 2
-        fi
-
-        # Try to read InnoDB header
-        if ! mysqld --validate-config >/dev/null 2>&1; then
-            log_warn "MySQL configuration validation failed"
-            return 2
-        fi
-        
-        log_info "Valid existing installation detected"
-        return 1
-    fi
-
-    # Case 4: Partial/corrupt installation
-    if [ -f "${DATA_DIR}/ibdata1" ] || [ -d "${DATA_DIR}/mysql" ]; then
-        log_warn "Partial or corrupt installation detected"
-        return 2
-    fi
-
-    # Case 5: Unknown state
-    log_error "Unknown MySQL data directory state"
-    return 3
-}
-
-# Legacy wrapper for compatibility
-detect_recovery_needed() {
-    local state
-    detect_mysql_state
-    state=$?
-    
-    case $state in
-        0) return 1 ;; # Fresh install = no recovery
-        1) return 1 ;; # Valid install = no recovery
-        2) return 0 ;; # Recovery needed = yes
-        *) return 0 ;; # Unknown = try recovery
-    esac
-}
 
 # Validate cluster state before recovery
 validate_cluster_state() {
@@ -237,25 +159,20 @@ perform_recovery() {
 
     log_info "Recovery completed successfully"
     return 0
-    if [ "${BACKUP_ENABLED}" = "true" ] && [ "${RECOVER_FROM_BACKUP}" = "true" ]; then
-        log_info "Backup recovery enabled, attempting restore..."
-        if restore_from_backup; then
-            log_info "Successfully restored from backup"
-            return 0
-        fi
-        log_info "No backup available or restore failed, falling back to fresh initialization"
-    else
-        log_info "Backup recovery disabled or not requested, proceeding with fresh initialization"
-    fi
+}
 
-    # Always proceed with fresh initialization if we get here
-    log_info "Performing fresh initialization"
-    if ! init_mysql; then
-        log_error "Failed to initialize MySQL"
-        return 1
-    fi
-
-    return 0
+# Legacy wrapper for compatibility
+detect_recovery_needed() {
+    local state
+    detect_mysql_state
+    state=$?
+    
+    case $state in
+        0) return 1 ;; # Fresh install = no recovery
+        1) return 1 ;; # Valid install = no recovery
+        2) return 0 ;; # Recovery needed = yes
+        *) return 0 ;; # Unknown = try recovery
+    esac
 }
 
 # Restore from backup with enhanced error handling

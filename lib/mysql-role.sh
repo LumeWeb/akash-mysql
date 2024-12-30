@@ -59,11 +59,26 @@ ensure_role_consistency() {
 handle_promotion_to_master() {
     log_info "Handling promotion to source (primary) role"
     
-    # Verify MySQL is actually running first
-    if ! mysqladmin ping -s >/dev/null 2>&1; then
-        log_error "Cannot promote - MySQL is not running"
-        return 1
-    fi
+    # Verify MySQL state before promotion
+    detect_mysql_state
+    state_code=$?
+
+    case $state_code in
+        1)  # Valid installation
+            if ! mysqladmin ping -s >/dev/null 2>&1; then
+                log_error "Cannot promote - MySQL is not running"
+                return 1
+            fi
+            ;;
+        0|2)  # Fresh install or recovery needed
+            log_error "Cannot promote - MySQL needs initialization or recovery"
+            return 1
+            ;;
+        *)
+            log_error "Cannot promote - Unknown database state"
+            return 1
+            ;;
+    esac
 
     # Verify we can execute queries before proceeding
     if ! mysql_retry_auth root "${MYSQL_ROOT_PASSWORD}" -e "SELECT 1" >/dev/null; then

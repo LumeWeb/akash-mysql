@@ -292,18 +292,47 @@ restore_backup() {
 
     log_info "Preparing to restore from S3: $latest_backup"
 
-    # Stop MySQL if running
-    if pgrep mysqld >/dev/null; then
-        log_info "Stopping MySQL for restore"
-        mysqladmin shutdown
-        sleep 5
-    fi
+    # Check current state before restore
+    detect_mysql_state
+    state_code=$?
 
-    # Safely clear data directory
-    if ! safe_clear_directory "$DATA_DIR"; then
-        log_error "Failed to clear data directory"
-        return 1
-    fi
+    case $state_code in
+        0|2)  # Fresh install or recovery needed
+            # Stop MySQL if running
+            if pgrep mysqld >/dev/null; then
+                log_info "Stopping MySQL for restore"
+                mysqladmin shutdown
+                sleep 5
+            fi
+
+            # Safely clear data directory
+            if ! safe_clear_directory "$DATA_DIR"; then
+                log_error "Failed to clear data directory"
+                return 1
+            fi
+            ;;
+        1)  # Valid installation
+            log_warn "Attempting to restore over valid installation"
+            if [ "${FORCE_RESTORE:-0}" != "1" ]; then
+                log_error "Refusing to restore over valid installation without FORCE_RESTORE=1"
+                return 1
+            fi
+            # Then proceed with shutdown and clear
+            if pgrep mysqld >/dev/null; then
+                log_info "Stopping MySQL for forced restore"
+                mysqladmin shutdown
+                sleep 5
+            fi
+            if ! safe_clear_directory "$DATA_DIR"; then
+                log_error "Failed to clear data directory"
+                return 1
+            fi
+            ;;
+        *)
+            log_error "Unknown database state - cannot proceed with restore"
+            return 1
+            ;;
+    esac
 
     # Prepare backup directly from S3
     if ! xtrabackup --prepare --target-dir="${latest_backup}"; then

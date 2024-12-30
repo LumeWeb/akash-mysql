@@ -8,6 +8,10 @@ source "${LIB_PATH}/core/constants.sh"
 source "${LIB_PATH}/core/cron.sh"
 source "${LIB_PATH}/core/setup.sh"
 
+# Initialize all state directories
+init_state_directories
+source "${LIB_PATH}/core/setup.sh"
+
 # If we're running as root, set up permissions and re-execute as mysql
 if [ "$(id -u)" = "0" ]; then
     # Create and set permissions on required directories

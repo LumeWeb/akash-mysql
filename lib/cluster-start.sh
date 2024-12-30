@@ -41,6 +41,26 @@ CURRENT_ROLE="$initial_role"
 export CURRENT_ROLE
 log_info "Starting MySQL with initial slave role: $CURRENT_ROLE"
 
+# Check MySQL state
+detect_mysql_state
+state_code=$?
+
+case $state_code in
+    0) log_info "Fresh installation needed" ;;
+    1) log_info "Valid installation detected" ;;
+    2) 
+        log_warn "Recovery needed - attempting repair"
+        if ! perform_recovery 0; then
+            log_error "Recovery failed"
+            exit 1
+        fi
+        ;;
+    *)
+        log_error "Unknown database state"
+        exit 1
+        ;;
+esac
+
 # Start MySQL server initialization
 log_info "Starting MySQL server initialization..."
 if ! start_mysql "$initial_role" "$SERVER_ID" "$HOST" "$@"; then

@@ -28,24 +28,24 @@ ensure_state_dirs() {
 ensure_state_dirs
 
 # Check if recovery is needed
-if detect_mysql_state; then
-    state_code=$?
-    case $state_code in
-        0) log_info "Fresh installation needed" ;;
-        1) log_info "Valid installation detected" ;;
-        2) 
-            log_warn "Recovery needed - attempting repair"
-            if ! perform_recovery 0; then
-                log_error "Recovery failed"
-                exit 1
-            fi
-            ;;
-        *)
-            log_error "Unknown database state"
+detect_mysql_state
+state_code=$?
+
+case $state_code in
+    0) log_info "Fresh installation needed" ;;
+    1) log_info "Valid installation detected" ;;
+    2) 
+        log_warn "Recovery needed - attempting repair"
+        if ! perform_recovery 0; then
+            log_error "Recovery failed"
             exit 1
-            ;;
-    esac
-fi
+        fi
+        ;;
+    *)
+        log_error "Unknown database state"
+        exit 1
+        ;;
+esac
 
 # Start MySQL in standalone mode (server_id=1 for standalone)
 if ! start_mysql "$ROLE" 1 "$HOST" "${MYSQL_ARGS[@]}"; then

@@ -27,8 +27,11 @@ init_mysql() {
     log_info "Checking if MySQL initialization is needed..."
     
     # Check initialization state
-    if ! check_mysql_initialized "$DATA_DIR"; then
-        log_info "MySQL data directory is empty, initializing..."
+    detect_mysql_state
+    state_code=$?
+    
+    if [ $state_code -eq 0 ]; then
+        log_info "MySQL data directory needs initialization..."
         
         # Ensure directories exist and are writable
         for dir in "$DATA_DIR" "$RUN_DIR" "$LOG_DIR"; do
@@ -291,49 +294,7 @@ start_mysql() {
     # Check for forced master recovery
     FORCE_MASTER_RECOVERY=${FORCE_MASTER_RECOVERY:-0}
     
-    # Detect state before any actions
-    local mysql_state
-    mysql_state=$(detect_mysql_state)
-    local state_code=$?
-
-    case $state_code in
-        0) # Fresh install
-            log_info "Performing fresh MySQL installation"
-            if [ "$CLUSTER_MODE" = "true" ] && [ "${BACKUP_ENABLED}" = "true" ]; then
-                # Try restore from backup first in cluster mode
-                if ! perform_recovery 0; then
-                    log_info "No backup available, proceeding with fresh initialization"
-                    if ! init_mysql; then
-                        log_error "MySQL initialization failed"
-                        return 1
-                    fi
-                fi
-            else
-                # Direct initialization for standalone or when backups disabled
-                if ! init_mysql; then
-                    log_error "MySQL initialization failed"
-                    return 1
-                fi
-            fi
-            ;;
-            
-        1) # Valid installation
-            log_info "Using existing MySQL installation"
-            ;;
-            
-        2) # Recovery needed
-            log_warn "Recovery needed for MySQL installation"
-            if ! perform_recovery "${FORCE_MASTER_RECOVERY:-0}"; then
-                log_error "Recovery failed"
-                return 1
-            fi
-            ;;
-            
-        *) # Unknown/error state
-            log_error "Cannot proceed with unknown MySQL state"
-            return 1
-            ;;
-    esac
+    # State detection is now handled at a higher level
         
     # Skip permissions as we're already running as mysql user
     

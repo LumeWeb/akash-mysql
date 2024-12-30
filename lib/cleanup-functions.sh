@@ -51,10 +51,19 @@ cleanup() {
     LEASE_KEEPALIVE_PID=""
   fi
 
-  # Finally stop MySQL
-  if [ -f "${RUN_DIR}/mysqld.pid" ]; then
+  # Check MySQL state before shutdown
+  detect_mysql_state
+  state_code=$?
+
+  # Only attempt clean shutdown for valid installations
+  if [ $state_code -eq 1 ] && [ -f "${RUN_DIR}/mysqld.pid" ]; then
+    log_info "Performing clean shutdown of valid MySQL installation"
     mysqladmin shutdown 2>/dev/null || true
     # Wait for MySQL to fully shutdown
+    sleep 5
+  elif [ -f "${RUN_DIR}/mysqld.pid" ]; then
+    log_warn "Forcing shutdown of MySQL in state: $state_code"
+    kill $(cat "${RUN_DIR}/mysqld.pid") 2>/dev/null || true
     sleep 5
   fi
 
