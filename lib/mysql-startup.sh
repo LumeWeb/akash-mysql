@@ -30,8 +30,27 @@ init_mysql() {
     detect_mysql_state
     state_code=$?
     
+    case $state_code in
+        0)  # Fresh install needed
+            log_info "MySQL data directory needs initialization..."
+            # Proceed with initialization below
+            ;;
+        1)  # Valid installation
+            log_info "Using existing MySQL installation"
+            return 0  # Skip initialization for valid installations
+            ;;
+        2)  # Recovery needed
+            log_error "Recovery needed - initialization aborted"
+            return 1
+            ;;
+        *)  # Unknown state
+            log_error "Unknown MySQL state detected"
+            return 1
+            ;;
+    esac
+
+    # Only proceed with initialization for fresh installs
     if [ $state_code -eq 0 ]; then
-        log_info "MySQL data directory needs initialization..."
         
         # Ensure directories exist and are writable
         for dir in "$DATA_DIR" "$RUN_DIR" "$LOG_DIR"; do
