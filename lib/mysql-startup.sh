@@ -221,25 +221,30 @@ init_ca_trust() {
         return 1
     fi
 
-    # Create and clean CA trust directory
-    mkdir -p "${MYSQL_SSL_TRUST_DIR}"
-    rm -f "${MYSQL_SSL_TRUST_DIR}"/*
+    # Create CA trust directory if it doesn't exist
+    if [ ! -d "${MYSQL_SSL_TRUST_DIR}" ]; then
+        log_error "CA trust directory ${MYSQL_SSL_TRUST_DIR} does not exist"
+        return 1
+    fi
+
+    # Clean directory with proper error handling
+    find "${MYSQL_SSL_TRUST_DIR}" -type f -delete 2>/dev/null || {
+        log_warn "Failed to clean CA trust directory, continuing anyway"
+    }
     
     # Copy our CA certificate
-    cp "${MYSQL_SSL_CA}" "${MYSQL_SSL_TRUST_DIR}/" || {
+    if ! cp "${MYSQL_SSL_CA}" "${MYSQL_SSL_TRUST_DIR}/"; then
         log_error "Failed to copy CA certificate to trust directory"
         return 1
-    }
+    fi
     
     # Create hash symlinks
-    c_rehash "${MYSQL_SSL_TRUST_DIR}" || {
+    if ! c_rehash "${MYSQL_SSL_TRUST_DIR}" 2>/dev/null; then
         log_error "Failed to create certificate hash links"
         return 1
-    }
-    
-    # Set proper permissions
-    chown -R mysql:mysql "${MYSQL_SSL_TRUST_DIR}"
-    chmod -R 500 "${MYSQL_SSL_TRUST_DIR}"
+    fi
+
+    return 0
 }
 
 # Generate SSL certificates if needed

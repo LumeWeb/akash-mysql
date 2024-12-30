@@ -56,6 +56,17 @@ socket = ${MYSQL_SOCKET}
 EOF
     chmod 600 "${CONFIG_DIR}/exporter.cnf"
 
+    # Set up SSL and CA trust directories with proper permissions
+    mkdir -p "${MYSQL_SSL_DIR}" "${MYSQL_SSL_TRUST_DIR}"
+    chown -R mysql:mysql "${MYSQL_SSL_DIR}" "${MYSQL_SSL_TRUST_DIR}"
+    chmod 750 "${MYSQL_SSL_DIR}" "${MYSQL_SSL_TRUST_DIR}"
+
+    # Ensure state directory structure exists with proper permissions
+    mkdir -p "${STATE_DIR}/ca-trust"
+    chown -R mysql:mysql "${STATE_DIR}"
+    chmod 750 "${STATE_DIR}"
+    chmod 700 "${STATE_DIR}/ca-trust"
+
     # Set proper permissions
     chown -R mysql:mysql $DATA_ROOT $RUN_DIR $LOG_DIR $CONFIG_DIR
     chmod 750 $DATA_ROOT $DATA_DIR
