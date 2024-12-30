@@ -148,63 +148,95 @@ validate_cluster_state() {
     return 0
 }
 
-# Main recovery workflow
+# Main recovery workflow following logical decision tree
 perform_recovery() {
     local force=${1:-0}
     
-    log_info "Starting recovery workflow"
+    log_info "Starting recovery workflow (force=${force})"
 
-    # Create recovery lock file
+    # Create and acquire recovery lock
     local lock_file="/var/run/mysqld/recovery.lock"
     if ! mkdir -p "$(dirname "$lock_file")" 2>/dev/null; then
         log_error "Failed to create recovery lock directory"
         return 1
     fi
 
-    # Try to acquire lock
     exec 200>"$lock_file"
     if ! flock -n 200; then
         log_error "Another recovery process is running"
         return 1
     fi
-
-    # Ensure lock is released on exit
     trap 'exec 200>&-; rm -f "$lock_file"' EXIT
 
-    # Backup existing data if any
-    if [ -d "${DATA_DIR}/mysql" ] || [ -f "${DATA_DIR}/ibdata1" ]; then
-        local backup_dir="/var/backup/mysql_backup_$(date +%Y%m%d_%H%M%S)"
-        log_info "Backing up existing data to $backup_dir"
-        mkdir -p "$backup_dir"
-        rsync -av --delete "${DATA_DIR}/" "$backup_dir/" 2>/dev/null || true
-    fi
+    # Step 2: Detect current state
+    local state_code
+    detect_mysql_state
+    state_code=$?
 
-    # For cluster mode, validate topology first
+    case $state_code in
+        0)  # Fresh install needed
+            log_info "Fresh installation needed - proceeding to initialization"
+            ;;
+        1)  # Valid installation
+            if [ "$force" = "1" ]; then
+                log_info "Valid installation found but force=1, proceeding with recovery"
+            else
+                log_info "Valid installation found, no recovery needed"
+                return 0
+            fi
+            ;;
+        2)  # Recovery needed
+            log_info "Recovery needed - proceeding with recovery process"
+            ;;
+        *)  # Error state
+            log_error "Unknown database state detected"
+            return 1
+            ;;
+    esac
+
+    # Step 3: Handle cluster mode validation
     if [ "$CLUSTER_MODE" = "true" ]; then
+        log_info "Validating cluster state before recovery"
         if ! validate_cluster_state "$force"; then
             log_error "Cluster validation failed - recovery aborted"
             return 1
         fi
-
-        # Handle slave recovery differently
-        if [ "$CURRENT_ROLE" = "slave" ]; then
-            log_info "Slave recovery - using replication"
-            if ! handle_demotion_to_slave; then
-                log_error "Failed to configure replication"
-                return 1
-            fi
-            return 0
-        fi
     fi
 
-    # Clean data directory
+    # Step 4: Clean data directory
+    if pgrep mysqld >/dev/null; then
+        log_info "Stopping MySQL for recovery"
+        mysqladmin shutdown
+        sleep 5
+    fi
+
     log_info "Cleaning data directory for recovery"
     if ! safe_clear_directory "$DATA_DIR"; then
         log_error "Failed to clear data directory"
         return 1
     fi
 
-    # Try backup recovery only if explicitly enabled
+    # Step 5: Try backup restoration if enabled
+    if [ "${BACKUP_ENABLED}" = "true" ] && [ "${RECOVER_FROM_BACKUP}" = "true" ]; then
+        log_info "Attempting S3 backup restoration"
+        if restore_from_backup; then
+            log_info "Successfully restored from backup"
+            return 0
+        fi
+        log_info "Backup restoration failed or no backup available - proceeding with fresh initialization"
+    else
+        log_info "Backup recovery disabled or not requested"
+    fi
+
+    # Step 6: Perform fresh initialization
+    log_info "Performing fresh MySQL initialization"
+    if ! init_mysql; then
+        log_error "Failed to initialize MySQL"
+        return 1
+    fi
+
+    log_info "Recovery completed successfully"
+    return 0
     if [ "${BACKUP_ENABLED}" = "true" ] && [ "${RECOVER_FROM_BACKUP}" = "true" ]; then
         log_info "Backup recovery enabled, attempting restore..."
         if restore_from_backup; then

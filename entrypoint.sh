@@ -11,11 +11,11 @@ source "${LIB_PATH}/core/setup.sh"
 # If we're running as root, set up permissions and re-execute as mysql
 if [ "$(id -u)" = "0" ]; then
     # Create and set permissions on required directories
-    mkdir -p $DATA_ROOT $DATA_DIR $RUN_DIR $LOG_DIR $CONFIG_DIR $MYSQL_FILES_DIR
+    mkdir -p $DATA_ROOT $DATA_DIR $RUN_DIR $LOG_DIR $CONFIG_DIR $MYSQL_FILES_DIR "${STATE_DIR}/recovery"
     
     # Set proper permissions for MySQL directories
-    chown -R mysql:mysql $DATA_ROOT $RUN_DIR $LOG_DIR $CONFIG_DIR
-    chmod 750 $DATA_ROOT $DATA_DIR $MYSQL_FILES_DIR
+    chown -R mysql:mysql $DATA_ROOT $RUN_DIR $LOG_DIR $CONFIG_DIR "${STATE_DIR}/recovery"
+    chmod 750 $DATA_ROOT $DATA_DIR $MYSQL_FILES_DIR "${STATE_DIR}/recovery"
     chmod 755 $RUN_DIR $LOG_DIR $CONFIG_DIR
     
     # Create base MySQL configuration
