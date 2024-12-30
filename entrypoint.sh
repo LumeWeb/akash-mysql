@@ -18,11 +18,6 @@ if [ "$(id -u)" = "0" ]; then
     chmod 750 $DATA_ROOT $DATA_DIR $MYSQL_FILES_DIR
     chmod 755 $RUN_DIR $LOG_DIR $CONFIG_DIR
     
-    # Ensure directory is clean for initialization
-    if [ ! -d "$DATA_DIR/mysql" ]; then
-        rm -rf "$DATA_DIR"/*
-    fi
-    
     # Create base MySQL configuration
     cat > "/etc/my.cnf" << EOF
 [mysqld]
