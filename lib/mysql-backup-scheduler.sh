@@ -13,12 +13,10 @@ declare -g BACKUP_SCHEDULER_PID=""
 
 # Start backup scheduler
 start_backup_scheduler() {
-    # Load backup configuration
-    if [ -f "${BACKUP_CONFIG_DIR}/backup.conf" ]; then
-        source "${BACKUP_CONFIG_DIR}/backup.conf"
-    fi
-
-    # Use cron for scheduling in both modes
+    if [ "${BACKUP_ENABLED}" != "true" ]; then
+        return 0
+    }
+    
     setup_backup_cron
 }
 
@@ -29,11 +27,11 @@ setup_backup_cron() {
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# Full backup daily at midnight
-${BACKUP_SCHEDULE_FULL:-0 0 * * *} root /usr/local/bin/mysql-backup-full
+# Full backup every hour
+${BACKUP_SCHEDULE_FULL:-0 * * * *} root /usr/local/bin/mysql-backup-full
 
-# Incremental backup every 6 hours
-${BACKUP_SCHEDULE_INCREMENTAL:-0 */6 * * *} root /usr/local/bin/mysql-backup-incremental
+# Incremental backup disabled
+# ${BACKUP_SCHEDULE_INCREMENTAL:-0 */6 * * *} root /usr/local/bin/mysql-backup-incremental
 
 # Cleanup old backups daily
 0 1 * * * root /usr/local/bin/mysql-backup-cleanup

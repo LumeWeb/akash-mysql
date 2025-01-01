@@ -43,15 +43,13 @@ list_latest_backup() {
 
 # Initialize backup environment and validate all required settings
 init_backup_env() {
-    # Check if backups are enabled
+    # Early return if backups disabled
     if [ "${BACKUP_ENABLED}" != "true" ]; then
         log_info "Backups are disabled via BACKUP_ENABLED environment variable"
         return 0
     fi
 
-    log_info "Initializing backup environment"
-
-    # Validate required S3 variables since backups are enabled
+    # Basic validation only
     for var in "${REQUIRED_S3_VARS[@]}"; do
         if [ -z "${!var}" ]; then
             log_error "Required S3 variable $var is not set"
@@ -59,71 +57,7 @@ init_backup_env() {
         fi
     done
 
-    # Validate backup paths and directories
-    if [ -z "$BACKUP_CONFIG_DIR" ]; then
-        log_error "BACKUP_CONFIG_DIR is not set"
-        return 1
-    fi
-
-    if [ ! -d "$BACKUP_CONFIG_DIR" ] && ! mkdir -p "$BACKUP_CONFIG_DIR"; then
-        log_error "Failed to create BACKUP_CONFIG_DIR: $BACKUP_CONFIG_DIR"
-        return 1
-    fi
-
-    # Validate backup retention period
-    if [ -z "$BACKUP_RETENTION_DAYS" ] || ! [[ "$BACKUP_RETENTION_DAYS" =~ ^[0-9]+$ ]]; then
-        log_error "BACKUP_RETENTION_DAYS must be a positive integer"
-        return 1
-    fi
-
-    # Validate backup intervals
-    if [ -z "$BACKUP_FULL_INTERVAL" ] || ! [[ "$BACKUP_FULL_INTERVAL" =~ ^[0-9]+$ ]]; then
-        log_error "BACKUP_FULL_INTERVAL must be a positive integer"
-        return 1
-    fi
-
-    if [ -z "$BACKUP_INCR_INTERVAL" ] || ! [[ "$BACKUP_INCR_INTERVAL" =~ ^[0-9]+$ ]]; then
-        log_error "BACKUP_INCR_INTERVAL must be a positive integer"
-        return 1
-    fi
-
-    # Validate MySQL credentials
-    if [ -z "$MYSQL_ROOT_PASSWORD" ]; then
-        log_error "MYSQL_ROOT_PASSWORD is not set"
-        return 1
-    fi
-
-    # Validate S3 SSL setting
-    if [ -n "$S3_SSL" ] && [ "$S3_SSL" != "true" ] && [ "$S3_SSL" != "false" ]; then
-        log_error "S3_SSL must be either 'true' or 'false'"
-        return 1
-    fi
-
-    # Validate S3 path
-    if [ -z "$S3_PATH" ]; then
-        log_error "S3_PATH is not set"
-        return 1
-    fi
-    
-    # Create and secure encryption key directory
-    mkdir -p "$BACKUP_KEY_DIR"
-    chmod 750 "$BACKUP_KEY_DIR"
-    chown -R mysql:mysql "$BACKUP_KEY_DIR"
-
-    # Generate encryption key if it doesn't exist
-    if [ ! -f "$BACKUP_KEY_DIR/backup.key" ]; then
-        log_info "Generating new backup encryption key"
-        openssl rand -base64 32 > "$BACKUP_KEY_DIR/backup.key"
-        chmod 400 "$BACKUP_KEY_DIR/backup.key"
-    else
-        log_info "Using existing backup encryption key"
-    fi
-
-    # Start streaming backup server for master or standalone
-    if [ "$CURRENT_ROLE" = "master" ] || [ "$CURRENT_ROLE" = "standalone" ]; then
-        start_streaming_backup_server
-        start_backup_scheduler
-    fi
+    return 0
 }
 
 # Backup streaming security model:
