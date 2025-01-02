@@ -29,7 +29,7 @@ declare -gr BACKUP_FULL_INTERVAL=86400    # 24 hours in seconds
 declare -gr BACKUP_INCR_INTERVAL=21600    # 6 hours in seconds
 
 # Backup configuration
-declare -gr BACKUP_ENABLED="${BACKUP_ENABLED:-false}"
+declare -gr BACKUP_ENABLED="${BACKUP_ENABLED:-true}"
 
 # Required S3 environment variables
 declare -gr REQUIRED_S3_VARS=(
