@@ -7,11 +7,11 @@ declare -g MYSQL_INIT_CHECKS_SOURCED=1
 source "${LIB_PATH}/core/logging.sh"
 source "${LIB_PATH}/core/constants.sh"
 
-# Detect MySQL installation state and handle recovery if needed
+# Detect MySQL installation state and return appropriate code
 # Returns:
 # 0 = Fresh Install Needed
 # 1 = Valid Installation
-# 2 = Recovery Failed
+# 2 = Recovery Needed
 # 3 = Error State
 detect_mysql_state() {
     local data_dir="${1:-${DATA_DIR}}"
@@ -72,13 +72,8 @@ detect_mysql_state() {
        [ -f "${data_dir}/ib_logfile1" ] || \
        [ -f "${data_dir}/aria_log_control" ] || \
        [ -f "${data_dir}/#innodb_temp/temp_*.ibt" ]; then
-        log_warn "Found crash recovery files - attempting recovery"
-        if ! perform_recovery 0; then
-            log_error "Recovery failed"
-            return 2
-        fi
-        # After successful recovery, treat as valid installation
-        return 1
+        log_warn "Found crash recovery files - recovery needed"
+        return 2
     fi
 
     # 4. Analyze Installation Type
