@@ -16,8 +16,8 @@ process_init_file() {
 
     case "$f" in
          *.sh)     log_info "Running $f"; . "$f" ;;
-         *.sql)    log_info "Running $f"; mysql_retry "${mysql[@]}" < "$f" >/dev/null 2>&1 ;;
-         *.sql.gz) log_info "Running $f"; gunzip -c "$f" | mysql_retry "${mysql[@]}" >/dev/null 2>&1 ;;
+         *.sql)    log_info "Running $f"; mysql_retry_auth root "${MYSQL_ROOT_PASSWORD}" < "$f" >/dev/null 2>&1 ;;
+         *.sql.gz) log_info "Running $f"; gunzip -c "$f" | mysql_retry_auth root "${MYSQL_ROOT_PASSWORD}" >/dev/null 2>&1 ;;
          *)        log_info "Ignoring $f" ;;
     esac
 }
