@@ -37,7 +37,7 @@ init_mysql() {
             ;;
         1)  # Valid installation
             log_info "Using existing MySQL installation"
-            return 0  # Skip initialization for valid installations
+            # Continue with initialization to ensure auth is properly configured
             ;;
         2)  # Recovery needed
             log_error "Recovery needed - initialization aborted"
