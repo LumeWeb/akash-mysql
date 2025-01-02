@@ -15,7 +15,7 @@ declare -g BACKUP_SCHEDULER_PID=""
 start_backup_scheduler() {
     if [ "${BACKUP_ENABLED}" != "true" ]; then
         return 0
-    fi
+    }
     
     setup_backup_cron
 }
