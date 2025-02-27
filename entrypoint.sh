@@ -2,6 +2,12 @@
 set -eo pipefail
 shopt -s nullglob
 
+if -f /akash-cfg/etcd.env; then
+  set -a
+  source /akash-cfg/config.env
+  set +a
+fi
+
 source ./paths.sh
 source "${LIB_PATH}/core/logging.sh"
 source "${LIB_PATH}/core/constants.sh"
