@@ -620,12 +620,17 @@ configure_mysql_client_ssl() {
     
     log_info "Configuring global MySQL client SSL settings"
     
+    # Escape password before writing to config
+    local escaped_password
+    escaped_password=$(escape_mysql_password "${MYSQL_ROOT_PASSWORD}")
+    
     cat > "$client_cnf" << EOF
 [client]
 ssl-ca = ${MYSQL_SSL_CA}
 ssl-cert = ${MYSQL_SSL_CERT}
 ssl-key = ${MYSQL_SSL_KEY}
 ssl-mode = VERIFY_CA
+password = "${escaped_password}"
 EOF
 
     chmod 644 "$client_cnf"

@@ -72,6 +72,13 @@ mysql_retry() {
     return 1
 }
 
+# Escape special characters in MySQL passwords
+escape_mysql_password() {
+    local pwd="$1"
+    # Escape special characters for MySQL config
+    echo "$pwd" | sed 's/[\\&@]/\\&/g'
+}
+
 # MySQL command retry wrapper with explicit authentication
 mysql_retry_auth() {
     local user="$1"
